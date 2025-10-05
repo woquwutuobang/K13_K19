@@ -35,8 +35,8 @@ ddG_heatmap_optimization<-function (input, wt_aa, title = "folding free energy c
                                   low = "#1B38A6", mid = "gray", high = "#F4270C", name = expression(Delta * Delta * "G (kcal/mol)" ),
                                   na.value = "white",
                                   guide = ggplot2::guide_colorbar(
-                                    title.position = "top",   # 标题在上方
-                                    title.hjust = 1           # 标题右对齐（0左，0.5中，1右）
+                                    title.position = "top",   
+                                    title.hjust = 1           
                                   )) + 
     ggplot2::ggtitle(title) + 
     ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5,vjust = 0.5, hjust = 0.5, color = c(NA, NA, NA, rep(c("black",NA, NA, NA, NA), nchar(wt_aa)%/%5)))) + 
@@ -70,83 +70,84 @@ wt_aa<-"TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMR
 
 ## folding
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Folding.txt",
+  input="path/to/weights_Folding.txt",
   wt_aa=wt_aa,
   title="KRAS-Folding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-Folding free energy changes.pdf", device = cairo_pdf,height = 6,width=20)
+ggplot2::ggsave("KRAS-Folding free energy changes.pdf", device = cairo_pdf,height = 6,width=20)
 
 
 
 # RAF1
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_RAF1.txt",
+  input="path/to/weights_RAF1.txt",
   wt_aa=wt_aa,
   title="KRAS-RAF1 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-RAF1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-RAF1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # SOS1
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_SOS.txt",
+  input="path/to/weights_SOS.txt",
   wt_aa=wt_aa,
   title="KRAS-SOS1 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-SOS1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-SOS1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # K55
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_K55.txt",
+  input="path/to/weights_K55.txt",
   wt_aa=wt_aa,
   title="KRAS-K55 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-K55 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-K55 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # K27
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_K27.txt",
+  input="path/to/weights_K27.txt",
   wt_aa=wt_aa,
   title="KRAS-K27 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-K27 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-K27 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # RALGDS
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_RAL.txt",
+  input="path/to/weights_RAL.txt",
   wt_aa=wt_aa,
   title="KRAS-RALGDS binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-RALGDS binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-RALGDS binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # PIK3CG
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_PI3.txt",
+  input="path/to/weights_PI3.txt",
   wt_aa=wt_aa,
   title="KRAS-PIK3CG binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-PIK3CG binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-PIK3CG binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # DARPin K13
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_K13.txt",
+  input="path/to/weights_K13.txt",
   wt_aa=wt_aa,
   title="KRAS-DARPin_K13 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-DARPin_K13 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-DARPin_K13 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # DARPin K19
 ddG_heatmap_optimization(
-  input="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_K19.txt",
+  input="path/to/weights_K19.txt",
   wt_aa=wt_aa,
   title="KRAS-DARPin_K19 binding free energy changes"
 )
 
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/DryLab/MoCHI/Results/20250920/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/KRAS-DARPin_K19 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+ggplot2::ggsave("KRAS-DARPin_K19 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+
