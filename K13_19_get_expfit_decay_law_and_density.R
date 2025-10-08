@@ -7,7 +7,7 @@ library(patchwork)
 library(dplyr)
 
 # ===============================
-# General Function: Distance Effect Fitting (Exponential Model)
+# Function: Distance Effect Fitting (Exponential Model)
 # ===============================
 plot_energy_distance_decay_expfit <- function(input, assay_sele, anno_file,
                                               x_cols = c("scHAmin_ligand_K13", "scHAmin_ligand_RAF1"),
@@ -35,7 +35,7 @@ plot_energy_distance_decay_expfit <- function(input, assay_sele, anno_file,
     df <- data.frame(x = xvector, y = yvector)
     df <- df[complete.cases(df), ]
     
-    # Initial parameter optimization
+    # --- Initial parameter optimization ---
     residual_sum_of_squares <- function(params, x, y) {
       a <- params[1]; b <- params[2]
       predicted <- a * exp(b * x)
@@ -47,13 +47,13 @@ plot_energy_distance_decay_expfit <- function(input, assay_sele, anno_file,
       error = function(e) c(a = 1, b = -0.1)
     )
     
-    # Fit exponential model
+    # --- Fit exponential model ---
     fit_model <- tryCatch(
       nls(y ~ a * exp(b * x), data = df, start = list(a = opt_params[1], b = opt_params[2])),
       error = function(e) NULL
     )
     
-    # Fit results and annotation
+    # --- Fit results ---
     fit_df <- data.frame()
     annotation_text <- NULL
     
@@ -81,67 +81,114 @@ plot_energy_distance_decay_expfit <- function(input, assay_sele, anno_file,
       annotation_text <- paste0("a = ", a_val, ", b = ", b_val, "\n", p_text)
     }
     
-    # Calculate density data
+    # --- Density data ---
     density_data <- density(df$x, na.rm = TRUE)
     density_df <- data.frame(
       x = density_data$x,
       density = density_data$y
     )
     
-    # Main plot
+    # --- Shared x breaks ---
+    x_breaks <- pretty(x_range, n = 5)
+    
+    # ========== Main plot ==========
     p_main <- ggplot(df, aes(x = x, y = y)) +
       geom_point(alpha = 0.1, size = 0.7, color = "#48B3AF") +
-      coord_cartesian(xlim = x_range, ylim = y_range) +
-      theme_classic(base_size = 13) +
+      scale_x_continuous(
+        limits = x_range,
+        breaks = x_breaks,
+        expand = c(0.02, 0)
+      ) +
+      scale_y_continuous(
+        limits = y_range,
+        expand = c(0, 0)
+      ) +
+      theme_classic(base_size = 8) +
+      theme(
+        text = element_text(size = 8, family = "Arial"),
+        axis.title = element_text(size = 8),
+        axis.text = element_text(size = 8, colour = "black"),
+        
+        # X-axis ticks - Force 90 degree rotation
+        axis.text.x = element_text(
+          angle = 90,                    # Rotate 90 degrees
+          vjust = 0.5,                   # Vertical center
+          hjust = 1,                     # Horizontal right alignment (after rotation)
+          margin = margin(t = 2, b = 2),
+          lineheight = 0.9
+        ),
+        
+        # Y-axis ticks
+        axis.text.y = element_text(
+          margin = margin(l = 2, r = 2),
+          hjust = 1,
+          lineheight = 0.9
+        ),
+        
+        axis.ticks.length = unit(1, "mm"),
+        axis.line = element_line(linewidth = 0.4, colour = "black"),
+        plot.margin = margin(5, 5, 15, 5)  # Increase bottom margin for rotated labels
+      ) +
       labs(
         x = titles[i],
         y = paste0("ΔΔG (", assay_sele, " binding)")
       )
     
+    # --- Add fitted curve ---
     if (nrow(fit_df) > 0) {
-      p_main <- p_main + geom_line(data = fit_df, aes(x = x, y = y),
-                                   inherit.aes = FALSE, color = "#9A3F3F", linewidth = 0.8)
-    }
-    if (!is.null(annotation_text)) {
-      p_main <- p_main + annotate("text",
-                                  x = Inf, y = Inf,
-                                  hjust = 1.1, vjust = 1.5,
-                                  label = annotation_text,
-                                  size = 4, color = "black")
+      p_main <- p_main +
+        geom_line(data = fit_df, aes(x = x, y = y),
+                  inherit.aes = FALSE, color = "#9A3F3F", linewidth = 0.8)
     }
     
-    # Density plot - Add axis information
+    # --- Annotation text ---
+    if (!is.null(annotation_text)) {
+      p_main <- p_main +
+        annotation_custom(
+          grob = textGrob(
+            label = annotation_text,
+            x = unit(0.97, "npc"),
+            y = unit(0.95, "npc"),
+            just = c("right", "top"),
+            gp = gpar(fontsize = 8, col = "black")
+          )
+        )
+    }
+    
+    # ========== Density plot ==========
     p_density <- ggplot(density_df, aes(x = x, y = density)) +
       geom_area(fill = "#48B3AF", alpha = 0.4) +
-      coord_cartesian(xlim = x_range) +
-      theme_classic(base_size = 10) +  # Use theme_classic instead of theme_void
-      theme(
-        plot.margin = margin(t = 0, r = 5.5, b = 5.5, l = 5.5),  # Adjust margins
-        axis.title.x = element_blank(),  # Remove x-axis title (main plot already has it)
-        axis.text.x = element_blank(),   # Remove x-axis tick labels
-        axis.ticks.x = element_blank(),  # Remove x-axis ticks
-        axis.title.y = element_text(size = 8),  # Reduce y-axis title font size
-        axis.text.y = element_text(size = 7),   # Reduce y-axis tick label size
-        panel.grid = element_blank()     # Ensure no grid lines
+      scale_x_continuous(
+        limits = x_range,
+        breaks = x_breaks,
+        expand = c(0.02, 0)
       ) +
-      labs(
-        x = NULL,
-        y = "Density"
-      )
+      theme_classic(base_size = 8) +
+      theme(
+        plot.margin = margin(0, 5.5, 5, 5.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        panel.grid = element_blank()
+      ) +
+      labs(x = NULL, y = "Density")
     
-    # Combine main plot and density plot
-    p_combined <- p_main / p_density + 
+    # --- Combine upper/lower plots ---
+    p_combined <- p_main / p_density +
       plot_layout(heights = c(3, 1))
     
     plot_list[[i]] <- p_combined
   }
   
-  # 3. Combine plots
+  # 3. Combine all plots
   final_plot <- wrap_plots(plot_list, ncol = 2)
   
   # 4. Save
   if (!is.null(save_path)) {
-    ggsave(save_path, final_plot, device = cairo_pdf, height = 6, width = 8)
+    ggsave(save_path, final_plot, device = cairo_pdf,
+           height = 6, width = 8)
   }
   
   return(final_plot)
@@ -221,4 +268,5 @@ plot_result <- plot_energy_distance_decay_expfit(
   anno_file = "path/to/annotations.csv",
   save_path = "path/to/K19_expfit.pdf"
 )
+
 print(plot_result)
