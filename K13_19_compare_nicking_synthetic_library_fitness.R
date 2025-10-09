@@ -1,29 +1,11 @@
 # Library Fitness Comparison Analysis
-# This script compares fitness data between two different libraries (e.g., synthetic vs nicking)
+# Compare fitness data between two libraries (e.g., synthetic vs nicking)
 
 library(wlab.block)
 library(data.table)
 library(ggplot2)
 library(dplyr)
 library(patchwork)
-
-#' Compare fitness data between two libraries for single mutations
-#'
-#' @param lib1_block1 Library 1 block 1 data file path
-#' @param lib1_block2 Library 1 block 2 data file path
-#' @param lib1_block3 Library 1 block 3 data file path
-#' @param lib2_block1 Library 2 block 1 data file path
-#' @param lib2_block2 Library 2 block 2 data file path
-#' @param lib2_block3 Library 2 block 3 data file path
-#' @param wt_aa Wild-type amino acid sequence
-#' @param output_file Output file path for saving the plot (optional)
-#' @param x_lab X-axis label
-#' @param y_lab Y-axis label
-#' @param main_title Main plot title
-#' @param point_alpha Point transparency (default: 0.3)
-#' @param plot_width Plot width in inches (default: 16)
-#' @param plot_height Plot height in inches (default: 5)
-#' @return List containing merged data and plot object
 
 compare_fitness_libraries_singlemut <- function(
     lib1_block1, lib1_block2, lib1_block3,
@@ -52,7 +34,7 @@ compare_fitness_libraries_singlemut <- function(
     return(fitness_data)
   }
   
-  # Process data from both libraries
+  # Process both libraries
   cat("Processing library 1 data...\n")
   fitness_data_1 <- process_library_data(lib1_block1, lib1_block2, lib1_block3, wt_aa, "1")
   
@@ -65,9 +47,8 @@ compare_fitness_libraries_singlemut <- function(
   
   cat(paste("Total variants after merging:", nrow(data), "\n"))
   
-  # Create correlation plot function
+  # ---- Correlation plot ----
   create_cor_plot <- function(data, title, x_label, y_label) {
-    # Remove missing values
     complete_cases <- complete.cases(data$fitness1, data$fitness2)
     data_complete <- data[complete_cases, ]
     
@@ -76,48 +57,51 @@ compare_fitness_libraries_singlemut <- function(
       return(ggplot() + 
                labs(title = title, x = x_label, y = y_label) +
                annotate("text", x = 0.5, y = 0.5, label = "Insufficient data") +
-               theme_minimal())
+               theme_minimal(base_size = 8))
     }
     
-    # Calculate Pearson correlation and p-value
+    # Pearson correlation
     cor_test <- cor.test(data_complete$fitness1, data_complete$fitness2, 
                          method = "pearson", use = "complete.obs")
     r_value <- round(cor_test$estimate, 3)
     p_value <- round(cor_test$p.value, 4)
     
-    # Create plot
+    # Plot
     p <- ggplot(data_complete, aes(x = fitness1, y = fitness2)) +
       geom_point(color = "#48B3AF", alpha = point_alpha, size = 1.5) +
       geom_smooth(method = "lm", color = "#9A3F3F", se = TRUE, 
                   fill = "gray70", alpha = 0.3) +
+      coord_cartesian(xlim = c(-1.5, 1.0), ylim = c(-1.5, 0.5)) +   # 固定坐标范围
       labs(
         title = title,
         x = x_label,
         y = y_label
       ) +
       annotate("text", 
-               x = min(data_complete$fitness1, na.rm = TRUE) + 
-                 0.1 * diff(range(data_complete$fitness1, na.rm = TRUE)),
-               y = max(data_complete$fitness2, na.rm = TRUE) - 
-                 0.1 * diff(range(data_complete$fitness2, na.rm = TRUE)),
+               x = -1.4, y = 0.45,
                label = paste0("r = ", r_value, "\np = ", 
                               ifelse(p_value < 0.0001, "< 0.0001", p_value)),
-               hjust = 0, vjust = 1, size = 3.5,
+               hjust = 0, vjust = 1, size = 2.5,
                color = "black", fontface = "bold") +
-      theme_minimal() +
+      theme_classic(base_size = 8) +  # 全局字体 8pt
       theme(
         panel.grid = element_blank(),
-        plot.title = element_text(hjust = 0.5, size = 10),
+        plot.title = element_text(hjust = 0.5, size = 8, face = "bold"),
+        axis.text = element_text(size = 8, colour = "black"),
+        axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),  # X轴旋转90度
+        axis.title = element_text(size = 8),
+        legend.position = "none",
+        plot.margin = margin(3, 3, 3, 3),
         panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
       )
     
     return(p)
   }
   
-  # Create overall plot
+  # Overall plot
   p_total <- create_cor_plot(data, "Overall", x_lab, y_lab)
   
-  # Create block subplots
+  # Subplots by block
   block_plots <- list()
   blocks <- unique(data$block)
   
@@ -127,28 +111,27 @@ compare_fitness_libraries_singlemut <- function(
     block_plots[[i]] <- p_block
   }
   
-  # Combine plots
+  # Combine
   if (length(blocks) == 3) {
     combined_plot <- p_total + block_plots[[1]] + block_plots[[2]] + block_plots[[3]] +
       plot_annotation(
         title = main_title,
-        theme = theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+        theme = theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
       ) +
       plot_layout(ncol = 4)
   } else {
-    # If number of blocks is not 3, use automatic layout
     combined_plot <- p_total + wrap_plots(block_plots) +
       plot_annotation(
         title = main_title,
-        theme = theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+        theme = theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
       ) +
       plot_layout(ncol = min(length(blocks) + 1, 4))
   }
   
-  # Display plot
+  # Show
   print(combined_plot)
   
-  # Save plot
+  # Save
   if (!is.null(output_file)) {
     ggsave(filename = output_file,
            plot = combined_plot,
@@ -160,7 +143,6 @@ compare_fitness_libraries_singlemut <- function(
     cat(paste("Plot saved to:", output_file, "\n"))
   }
   
-  # Return data and plot object
   return(list(data = data, plot = combined_plot))
 }
 
@@ -212,4 +194,5 @@ result_raf1 <- compare_fitness_libraries_singlemut(
   point_alpha = 0.3,
   plot_width = 16,
   plot_height = 5
+
 )
