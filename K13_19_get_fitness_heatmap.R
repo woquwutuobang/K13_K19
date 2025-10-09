@@ -13,7 +13,7 @@ library(ggplot2)
 #' @param legend_limits Limits for color legend
 #' @return ggplot object showing fitness heatmap
 
-fitness_heatmap_optimization <- function(input, wt_aa, title = "fitness", legend_limits = NULL) {
+fitness_heatmap <- function(input, wt_aa, title = "fitness", legend_limits = c(-1.5, 1)) {
   # Define amino acid order
   aa_list <- as.list(unlist(strsplit("GAVLMIFYWKRHDESTCNQP", "")))
   num <- nchar(wt_aa) + 1
@@ -120,7 +120,7 @@ nor_fit <- nor_fitness(
 )
 nor_fit_single <- nor_fitness_single_mut(input = nor_fit)
 nor_fit_single <- pos_id(nor_fit_single, wt_aa)
-p_abundance <- fitness_heatmap_optimization(nor_fit_single, wt_aa, title = "KRAS-Abundance")
+p_abundance <- fitness_heatmap(nor_fit_single, wt_aa, title = "KRAS-Abundance", legend_limits = c(-1.5, 1))
 ggsave("path/to/KRAS_Abundance_heatmap.pdf", p_abundance, height = 6, width = 20)
 
 # RAF1 binding fitness heatmap
@@ -131,7 +131,7 @@ nor_fit <- nor_fitness(
 )
 nor_fit_single <- nor_fitness_single_mut(input = nor_fit)
 nor_fit_single <- pos_id(nor_fit_single, wt_aa)
-p_raf1 <- fitness_heatmap_optimization(nor_fit_single, wt_aa, title = "KRAS-RAF1")
+p_raf1 <- fitness_heatmap(nor_fit_single, wt_aa, title = "KRAS-RAF1", legend_limits = c(-1.5, 1))
 ggsave("path/to/KRAS_RAF1_heatmap.pdf", p_raf1, height = 6, width = 20)
 
 # K13 DARPin binding fitness heatmap
@@ -142,7 +142,7 @@ nor_fit <- nor_fitness(
 )
 nor_fit_single <- nor_fitness_single_mut(input = nor_fit)
 nor_fit_single <- pos_id(nor_fit_single, wt_aa)
-p_k13 <- fitness_heatmap_optimization(nor_fit_single, wt_aa, title = "KRAS-DARPin K13")
+p_k13 <- fitness_heatmap(nor_fit_single, wt_aa, title = "KRAS-DARPin K13", legend_limits = c(-1.5, 1))
 ggsave("path/to/KRAS_K13_heatmap.pdf", p_k13, height = 6, width = 20)
 
 # K19 DARPin binding fitness heatmap
@@ -153,5 +153,6 @@ nor_fit <- nor_fitness(
 )
 nor_fit_single <- nor_fitness_single_mut(input = nor_fit)
 nor_fit_single <- pos_id(nor_fit_single, wt_aa)
-p_k19 <- fitness_heatmap_optimization(nor_fit_single, wt_aa, title = "KRAS-DARPin K19")
+p_k19 <- fitness_heatmap(nor_fit_single, wt_aa, title = "KRAS-DARPin K19", legend_limits = c(-1.5, 1))
+
 ggsave("path/to/KRAS_K19_heatmap.pdf", p_k19, height = 6, width = 20)
