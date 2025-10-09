@@ -69,7 +69,7 @@ ddG_heatmap<-function (input, wt_aa, title = "folding free energy change",
 wt_aa<-"TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
 ## folding
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_Folding.txt",
   wt_aa=wt_aa,
   title="KRAS-Folding free energy changes",legend_limits = c(-1.6,2.8)
@@ -80,7 +80,7 @@ ggplot2::ggsave("KRAS-Folding free energy changes.pdf", device = cairo_pdf,heigh
 
 
 # RAF1
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_RAF1.txt",
   wt_aa=wt_aa,
   title="KRAS-RAF1 binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -89,7 +89,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-RAF1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # SOS1
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_SOS.txt",
   wt_aa=wt_aa,
   title="KRAS-SOS1 binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -98,7 +98,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-SOS1 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # K55
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_K55.txt",
   wt_aa=wt_aa,
   title="KRAS-K55 binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -107,7 +107,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-K55 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # K27
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_K27.txt",
   wt_aa=wt_aa,
   title="KRAS-K27 binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -116,7 +116,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-K27 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # RALGDS
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_RAL.txt",
   wt_aa=wt_aa,
   title="KRAS-RALGDS binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -125,7 +125,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-RALGDS binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # PIK3CG
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_PI3.txt",
   wt_aa=wt_aa,
   title="KRAS-PIK3CG binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -134,7 +134,7 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-PIK3CG binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # DARPin K13
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_K13.txt",
   wt_aa=wt_aa,
   title="KRAS-DARPin_K13 binding free energy changes",legend_limits = c(-1.6,2.8)
@@ -143,12 +143,13 @@ ddG_heatmap_optimization(
 ggplot2::ggsave("KRAS-DARPin_K13 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
 
 # DARPin K19
-ddG_heatmap_optimization(
+ddG_heatmap(
   input="path/to/weights_K19.txt",
   wt_aa=wt_aa,
   title="KRAS-DARPin_K19 binding free energy changes",legend_limits = c(-1.6,2.8)
 )
 
 ggplot2::ggsave("KRAS-DARPin_K19 binding free energy changes.pdf", device = cairo_pdf, height = 6, width = 20)
+
 
 
