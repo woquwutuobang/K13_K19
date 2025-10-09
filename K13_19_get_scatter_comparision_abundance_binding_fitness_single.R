@@ -69,96 +69,80 @@ identify_mutation_positions <- function(input, wt_aa) {
   return(output)
 }
 
-# Function to create scatter plot for K13 binding
-plot_binding_fitness_k13 <- function(input, assay_sele, anno, colour_scheme) {
+# ==============================
+# General Function: Plot binder binding fitness
+# ==============================
+plot_binding_fitness <- function(input, assay_sele, anno, colour_scheme) {
+  
+  # 1. Separate stability data (stab) and specified binding data
   input_abundance <- input[assay == "stab", ]
   input_abundance_single <- krasddpcams__nor_overlap_single_mt_fitness(input_abundance)
+  
   input_binding <- input[assay == assay_sele, ]
   input_binding_single <- krasddpcams__nor_overlap_single_mt_fitness(input_binding)
   
+  # 2. Merge both conditions
   input_long <- rbind(input_abundance_single, input_binding_single)
-  input_dc <- dcast(input_long, nt_seq + aa_seq + Nham_aa + 
-                      AA_Pos1 + wtcodon1 ~ assay, 
-                    value.var = c("nor_fitness_nooverlap", "nor_fitness_nooverlap_sigma", 
-                                  "nor_gr_nooverlap", "nor_gr_nooverlap_sigma"), 
+  input_dc <- dcast(input_long,
+                    nt_seq + aa_seq + Nham_aa + AA_Pos1 + wtcodon1 ~ assay,
+                    value.var = c("nor_fitness_nooverlap",
+                                  "nor_fitness_nooverlap_sigma",
+                                  "nor_gr_nooverlap",
+                                  "nor_gr_nooverlap_sigma"),
                     drop = TRUE)
   
   input_single_pos <- input_dc
   input_single_pos[, position := AA_Pos1]
   input_single_pos[, WT_AA := wtcodon1]
   
-  anno_single <- merge(input_single_pos, anno, by.x = c("position", "WT_AA"), 
-                       by.y = c("Pos_real", "codon"), all = TRUE)
-  anno_single[, K13_type_bs := "others"]
-  anno_single[get(paste0("scHAmin_ligand_", assay_sele)) < 5, 
-              K13_type_bs := "binding_interface"]
+  # 3. Merge with annotation file
+  anno_single <- merge(input_single_pos, anno,
+                       by.x = c("position", "WT_AA"),
+                       by.y = c("Pos_real", "codon"),
+                       all = TRUE)
   
-  ggplot() +
-    geom_point(data = anno_single[position > 1 & K13_type_bs == "others", ],
-               aes(x = nor_fitness_nooverlap_stab, 
+  # 4. Label binding interface residues
+  interface_col <- paste0("scHAmin_ligand_", assay_sele)
+  anno_single[, type_bs := "others"]
+  anno_single[get(interface_col) < 5, type_bs := "binding_interface"]
+  
+  # 5. Create plot
+  p <- ggplot() +
+    # Non-binding interface mutations
+    geom_point(data = anno_single[position > 1 & type_bs == "others", ],
+               aes(x = nor_fitness_nooverlap_stab,
                    y = get(paste0("nor_fitness_nooverlap_", assay_sele))),
                color = "black", alpha = 0.6, size = 0.1) +
-    geom_point(data = anno_single[position > 1 & K13_type_bs == "binding_interface", ],
-               aes(x = nor_fitness_nooverlap_stab, 
+    # Binding interface mutations
+    geom_point(data = anno_single[position > 1 & type_bs == "binding_interface", ],
+               aes(x = nor_fitness_nooverlap_stab,
                    y = get(paste0("nor_fitness_nooverlap_", assay_sele))),
                color = colour_scheme[["red"]], alpha = 0.6, size = 0.5) +
-    theme_classic2() +
-    labs(color = NULL) +
-    xlab("Protein Abundance Fitness") +
-    ylab("K13 Binding Fitness") +
-    theme(text = element_text(size = 8),
-          legend.position = "right",
-          axis.text = element_text(size = 8),
-          legend.key.height = unit(3.1, "mm"),
-          legend.key.width = unit(3.1, "mm"),
-          plot.margin = margin(0, 0, 0, 0)) +
-    coord_fixed(ratio = 1.6)
-}
-
-# Function to create scatter plot for K19 binding  
-plot_binding_fitness_k19 <- function(input, assay_sele, anno, colour_scheme) {
-  input_abundance <- input[assay == "stab", ]
-  input_abundance_single <- krasddpcams__nor_overlap_single_mt_fitness(input_abundance)
-  input_binding <- input[assay == assay_sele, ]
-  input_binding_single <- krasddpcams__nor_overlap_single_mt_fitness(input_binding)
+    
+    # Fixed coordinate ranges
+    coord_cartesian(xlim = c(-1.5, 1.3), ylim = c(-1.5, 0.5)) +
+    
+    # Classic theme
+    theme_classic() +
+    
+    # Rotate X-axis ticks + control font
+    theme(
+      text = element_text(size = 8),
+      axis.text = element_text(size = 8),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      legend.position = "right",
+      legend.key.height = unit(3.1, "mm"),
+      legend.key.width = unit(3.1, "mm"),
+      plot.margin = margin(0, 0, 0, 0)
+    ) +
+    
+    labs(
+      x = "Abundance Fitness",
+      y = paste0(assay_sele, " Binding Fitness"),  # Automatically named based on binder
+      color = NULL
+    )
   
-  input_long <- rbind(input_abundance_single, input_binding_single)
-  input_dc <- dcast(input_long, nt_seq + aa_seq + Nham_aa + 
-                      AA_Pos1 + wtcodon1 ~ assay, 
-                    value.var = c("nor_fitness_nooverlap", "nor_fitness_nooverlap_sigma", 
-                                  "nor_gr_nooverlap", "nor_gr_nooverlap_sigma"), 
-                    drop = TRUE)
-  
-  input_single_pos <- input_dc
-  input_single_pos[, position := AA_Pos1]
-  input_single_pos[, WT_AA := wtcodon1]
-  
-  anno_single <- merge(input_single_pos, anno, by.x = c("position", "WT_AA"), 
-                       by.y = c("Pos_real", "codon"), all = TRUE)
-  anno_single[, K19_type_bs := "others"]
-  anno_single[get(paste0("scHAmin_ligand_", assay_sele)) < 5, 
-              K19_type_bs := "binding_interface"]
-  
-  ggplot() +
-    geom_point(data = anno_single[position > 1 & K19_type_bs == "others", ],
-               aes(x = nor_fitness_nooverlap_stab, 
-                   y = get(paste0("nor_fitness_nooverlap_", assay_sele))),
-               color = "black", alpha = 0.6, size = 0.1) +
-    geom_point(data = anno_single[position > 1 & K19_type_bs == "binding_interface", ],
-               aes(x = nor_fitness_nooverlap_stab, 
-                   y = get(paste0("nor_fitness_nooverlap_", assay_sele))),
-               color = colour_scheme[["red"]], alpha = 0.6, size = 0.5) +
-    theme_classic2() +
-    labs(color = NULL) +
-    xlab("Protein Abundance Fitness") +
-    ylab("K19 Binding Fitness") +
-    theme(text = element_text(size = 8),
-          legend.position = "right", 
-          axis.text = element_text(size = 8),
-          legend.key.height = unit(3.1, "mm"),
-          legend.key.width = unit(3.1, "mm"),
-          plot.margin = margin(0, 0, 0, 0)) +
-    coord_fixed(ratio = 1.5)
+  return(p)
 }
 
 # Load and normalize experimental data
@@ -194,18 +178,21 @@ all_data_pos_K13 <- identify_mutation_positions(all_data_K13, wt_aa)
 all_data_pos_K19 <- identify_mutation_positions(all_data_K19, wt_aa)
 
 # Load annotation data
-anno <- fread("path/to/annotation_data.csv")
-anno[, Pos_real := Pos]
+anno<-fread("path/to/anno_final_for_5.csv")
+anno[, Pos_real := Pos] 
+summery<-ddG_data_assay(input = "path/to/weights_Binding_K13.txt",
+                        wt_aa = wt_aa)
+anno<-merge(anno,summery,by="Pos_real",all=T)
 
 # Generate binding fitness plots
-plot_K13 <- plot_binding_fitness_k13(
+plot_K13 <- plot_binding_fitness(
   input = all_data_pos_K13,
   assay_sele = "K13",
   anno = anno,
   colour_scheme = colour_scheme
 )
 
-plot_K19 <- plot_binding_fitness_k19(
+plot_K19 <- plot_binding_fitness(
   input = all_data_pos_K19, 
   assay_sele = "K19",
   anno = anno,
@@ -220,4 +207,5 @@ print(plot_K19)
 ggsave("K13_binding_fitness.pdf", plot = plot_K13, device = cairo_pdf, 
        height = 4, width = 4)
 ggsave("K19_binding_fitness.pdf", plot = plot_K19, device = cairo_pdf,
+
        height = 4, width = 4)
