@@ -8,26 +8,9 @@ library(data.table)
 library(dplyr)
 library(krasddpcams)
 
-# Wild-type KRAS sequence (residues 2-189)
+# Wild-type KRAS sequence (residues 2-188)
 wt_aa <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
-# Color scheme for consistent visualization
-colour_scheme <- list(
-  "blue" = "#1B38A6",
-  "red" = "#F4270C",
-  "orange" = "#F4AD0C",
-  "green" = "#09B636",
-  "yellow" = "#F1DD10",
-  "purple" = "#6D17A0",
-  "pink" = "#FFB0A5",
-  "light_orange" = "#FFE4A5",
-  "light_blue" = "#9DACE3",
-  "light_green" = "#97E9AD",
-  "light_red" = "#FF6A56",
-  "dark_red" = "#A31300",
-  "dark_blue" = "#0C226F",
-  "dark_green" = "#007A20"
-)
 
 # Secondary structure elements
 secondary_structure <- data.frame(
@@ -37,13 +20,13 @@ secondary_structure <- data.frame(
 )
 
 # File paths for ddG data
-ddG_k13 <- "path/to/weights_Binding_K13.txt"
+ddG_k13 <- "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt"
 assay_k13 <- "K13"
-ddG_k19 <- "path/to/weights_Binding_K19.txt"
+ddG_k19 <- "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt"
 assay_k19 <- "K19"
 
 # Load annotation data
-anno <- fread("path/to/annotation_data.csv")
+anno <- fread("C:/Users/36146/OneDrive - USTC/DryLab/base_information_for_K13_K19_project/anno_final_for_5.csv")
 anno[, Pos_real := Pos]
 
 # Calculate weighted mean ddG for each assay
@@ -150,11 +133,11 @@ allosteric_plot <- ggplot() +
   # Points with error bars
   geom_point(data = data_plot,
              aes(x = distance_bp, y = mean, color = site_type, shape = shape),
-             size = 0.35) +
+             size = 0.45) +
   geom_pointrange(data = data_plot,
                   aes(x = distance_bp, y = mean, ymin = mean - sigma, ymax = mean + sigma,
                       color = site_type, shape = shape),
-                  size = 0.35) +
+                  size = 0.45) +
   
   # Reference lines
   geom_hline(yintercept = reg_threshold, linetype = 2, size = 0.1) +
@@ -165,14 +148,14 @@ allosteric_plot <- ggplot() +
   # Label allosteric sites
   geom_text_repel(data = data_plot[site_type == "major_allosteric", ],
                   aes(x = distance_bp, y = mean, label = Pos_real),
-                  nudge_y = 0.05, color = colour_scheme[["orange"]], size = 5 * 0.35) +
+                  nudge_y = 0.05, color = "#F4AD0C", size = 8 * 0.35) +
   geom_text_repel(data = data_plot[site_type == "allosteric_gtp_pocket", ],
                   aes(x = distance_bp, y = mean, label = Pos_real),
-                  nudge_y = 0.05, color = colour_scheme[["blue"]], size = 5 * 0.35) +
+                  nudge_y = 0.05, color ="#1B38A6", size = 8 * 0.35) +
   
   # Styling
   scale_color_manual(
-    values = c("red", "blue", "lightblue", "orange", "gray"),
+    values = c("#F4270C", "#1B38A6", "#75C2F6", "#F4AD0C", "gray"),
     labels = c("Binding Interface", "Allosteric GTP Pocket", 
                "Other GTP Pocket", "Major Allosteric", "Others")
   ) +
@@ -182,13 +165,14 @@ allosteric_plot <- ggplot() +
   facet_wrap(~ assay, ncol = 3) +
   theme_classic() +
   theme(
-    axis.text = element_text(size = 9),
-    text = element_text(size = 9),
+    axis.text = element_text(size = 8),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), 
+    text = element_text(size = 8),
     legend.position = "right",
-    strip.text = element_text(size = 9),
+    strip.text = element_text(size = 8),
     strip.background = element_rect(colour = "white", fill = "white"),
     panel.spacing = unit(0.2, "mm"),
-    legend.text = element_text(size = 5),
+    legend.text = element_text(size = 8),
     plot.margin = margin(0, 1, 0, 1, "mm"),
     legend.margin = margin(0, 0, 0, -2, "mm"),
     legend.spacing.y = unit(0, "mm"),
@@ -197,7 +181,8 @@ allosteric_plot <- ggplot() +
 
 # Display and save plot
 print(allosteric_plot)
-ggsave("K13_K19_allosteric_analysis.pdf",
+
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure3/20251011/K13_K19_allosteric_sites_with_energy_vs_distance_plot_2.pdf",
        plot = allosteric_plot,
        device = cairo_pdf,
        height = 5,
