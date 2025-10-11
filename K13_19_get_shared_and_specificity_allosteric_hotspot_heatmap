@@ -1,0 +1,137 @@
+library(dplyr)
+library(ggplot2)
+
+# ========= 1. Basic Data Setup =========
+positions <- 1:166
+wt_aa <- unlist(strsplit(
+  "MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM",
+  ""
+))
+
+partners <- c("DARPin K13","DARPin K19","RAF1","SOS1","DARPin K55","DARPin K27","RALGDS","PIK3CG")
+df <- expand.grid(Position = positions, Partner = partners, stringsAsFactors = FALSE) %>%
+  mutate(Residue = wt_aa[Position],
+         ResLabel = paste0(Residue, Position),
+         Contact = FALSE)
+
+# ========= 2. Define Hotspots for Each Binder =========
+partners_list <- list(
+  "DARPin K13" = c(15,16,145,10,53,77,89,151),
+  "DARPin K19" = c(15,16,145,10,77,89,134,151),
+  "RAF1" = c(15,16,17,28,32,35,57,60,117,146,58,59,63,68,69,71,72,77,78),
+  "SOS1" = c(16,17,28,32,35,57,146,40,54,55,69,85,144,148),
+  "DARPin K55" = c(15,16,17,28,32,35,57,60,117,146,58,59,63,68,69,71,72,77,78),
+  "DARPin K27" = c(15,16,17,57,60,117,119,145,10,37,63,76,77,83,85,112,156),
+  "RALGDS" = c(15,16,17,28,32,34,35,57,60,146,10,20,58,59,85),
+  "PIK3CG" = c(16,17,28,32,34,35,57,60,146,20,58,59,68,77,85)
+)
+for(p in names(partners_list)){
+  df$Contact[df$Partner==p & df$Position %in% partners_list[[p]]] <- TRUE
+}
+
+# ========= 3. Interface Annotation =========
+interface_I <- c("RAF1","SOS1","DARPin K55","DARPin K27","RALGDS","PIK3CG")
+interface_II <- c("DARPin K13","DARPin K19")
+df <- df %>%
+  mutate(Interface = case_when(
+    Partner %in% interface_I ~ "Interface I",
+    Partner %in% interface_II ~ "Interface II"
+  ))
+
+# ========= 4. Count Number of Binders per Position and Interface =========
+interface_counts <- df %>%
+  filter(Contact) %>%
+  group_by(Position, Interface) %>%
+  summarise(n_binders = n_distinct(Partner), .groups = "drop")
+
+df <- df %>%
+  left_join(interface_counts, by = c("Position","Interface")) %>%
+  mutate(n_binders = ifelse(is.na(n_binders), 0, n_binders))
+
+# ========= 5. Categorize by Interface Rules (Fill & Fill_Interface) =========
+df <- df %>%
+  mutate(Fill = case_when(
+    Contact == FALSE ~ "None",
+    Interface == "Interface I" & n_binders == 1 ~ "Unique (1 partner)",
+    Interface == "Interface I" & n_binders >= 2 & n_binders <= 3 ~ "Shared (2–3 partners)",
+    Interface == "Interface I" & n_binders >= 4 ~ "Common (≥4 partners)",
+    Interface == "Interface II" & n_binders == 1 ~ "Unique (1 binder)",
+    Interface == "Interface II" & n_binders == 2 ~ "Common (2 binders)",
+    TRUE ~ "None"
+  ),
+  Fill_Interface = paste(Interface, Fill, sep = " - "))
+
+# Force "None" for non-contact positions
+df$Fill_Interface[df$Contact == FALSE] <- "None"
+
+# ========= 6. Define Fill Levels Including "None" =========
+fill_levels <- c(
+  "Interface I - Unique (1 partner)",
+  "Interface I - Shared (2–3 partners)",
+  "Interface I - Common (≥4 partners)",
+  "Interface II - Unique (1 binder)",
+  "Interface II - Common (2 binders)",
+  "None"
+)
+df$Fill_Interface <- factor(df$Fill_Interface, levels = fill_levels)
+
+# ========= 7. Custom Color Scheme with Transparency =========
+## Interface I: RAF1 interface; Interface II: K13/K19 binding interface
+## Add alpha transparency (0.8 = 80% opacity)
+fill_colors <- c(
+  "Interface I - Unique (1 partner)" = alpha("#FF0066", 0.6),
+  "Interface I - Shared (2–3 partners)" = alpha("#09B636", 0.6),
+  "Interface I - Common (≥4 partners)" = alpha("#C68EFD", 0.6),
+  "Interface II - Unique (1 binder)" = alpha("#FF0066", 0.6),
+  "Interface II - Common (2 binders)" = alpha("#75C2F6", 0.6),
+  "None" = alpha("grey70", 0.3)   # White with transparency
+)
+
+# ========= 8. Filter to Keep Only Hotspot Positions =========
+hotspot_positions <- sort(unique(df$Position[df$Contact]))
+df_plot <- df %>% filter(Position %in% hotspot_positions)
+
+# ========= 9. Partner Order (RAF1 on top - reversed for ggplot bottom-up plotting) =========
+partner_order <- c("RAF1","SOS1","DARPin K55","DARPin K27","RALGDS","PIK3CG","DARPin K13","DARPin K19")
+df_plot$Partner <- factor(df_plot$Partner, levels = rev(partner_order))
+
+# ========= 10. GTP Pocket Annotation (only positions in hotspot_positions) =========
+GTP_pocket <- c(12,13,14,15,16,17,18,28,29,30,32,34,35,57,60,61,116,117,119,120,145,146,147)
+GTP_pocket_plot <- intersect(GTP_pocket, hotspot_positions)
+
+# ========= 11. Create Heatmap Plot =========
+p <- ggplot(df_plot, aes(x = factor(Position, levels = hotspot_positions),
+                         y = Partner,
+                         fill = Fill_Interface)) +
+  geom_tile(color = "white", linewidth = 0.05)+
+  scale_fill_manual(values = fill_colors, drop = FALSE) +
+  
+  # Add triangle markers below heatmap for GTP pocket
+  geom_point(data = data.frame(Position = GTP_pocket_plot, y = rep(-0.3, length(GTP_pocket_plot))),
+             aes(x = factor(Position, levels = hotspot_positions), y = y),
+             inherit.aes = FALSE, shape = 25, size = 3, 
+             fill = alpha("#1B38A6",1), color = alpha("#1B38A6",1)) +
+  coord_fixed(ratio = 1, clip = "off") +
+  scale_y_discrete(drop = FALSE) +
+  labs(x = "Residue Position", y = "Binding Partner", fill = "Hotspot category",
+       title = "KRAS Allosteric Hotspots across Different Binders") +
+  theme_minimal(base_size = 8) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title.x = element_text(size = 8, margin = margin(t = 10)),
+    axis.title.y = element_text(size = 8, margin = margin(r = 10)),
+    panel.grid = element_blank(),
+    legend.title = element_text(size = 8),
+    legend.text = element_text(size = 8),
+    plot.title = element_text(size = 8, hjust = 0.5, margin = margin(b = 15)),
+    legend.position = "bottom",
+    plot.margin = margin(t = 10, r = 10, b = 40, l = 10) # Extra bottom margin for triangles
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+
+print(p)
+
+# Save plot
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s6/20251010/shared_and_specificity_allosteric_hotspot_heatmap.pdf",
+       width = 10, height = 10, dpi = 300)
