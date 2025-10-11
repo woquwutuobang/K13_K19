@@ -329,25 +329,19 @@ for(assay in all_assays) {
 
 # Combined heatmap plotting function
 plot_combined_heatmap_final <- function(count_data, data_plot_mutation, assay_stats) {
-  library(ggplot2)
-  library(reshape2)
-  library(dplyr)
-  library(tidyr)
-  library(ggnewscale)
-  library(patchwork)
   
-  # Define order
+  # ========== 1. Define order ==========
   pos_order <- sort(unique(count_data$Pos_real))
   assay_order <- c("RAF1", "SOS1", "K55", "K27", "RALGDS", "PI3KCG", "K13", "K19")
-  assay_levels <- rev(assay_order)   # RAF1 at top
+  assay_levels <- rev(assay_order)
   
-  # Ensure count_data has correct type information
+  # ========== 2. Ensure count_data has type information ==========
   if(!"type" %in% names(count_data)) {
     type_info <- unique(data_plot_mutation[, .(Pos_real, type)])
     count_data <- merge(count_data, type_info, by = "Pos_real", all.x = TRUE)
   }
   
-  # Melt data - only include cells with data
+  # ========== 3. Melt data ==========
   count_cols <- paste0("count_", assay_order)
   melt_data <- melt(
     as.data.frame(count_data[, c("Pos_real", "type", count_cols), with = FALSE]),
@@ -358,26 +352,19 @@ plot_combined_heatmap_final <- function(count_data, data_plot_mutation, assay_st
   melt_data$Assay <- gsub("count_", "", melt_data$Assay)
   melt_data$Pos_real <- factor(melt_data$Pos_real, levels = pos_order)
   melt_data$Assay <- factor(melt_data$Assay, levels = assay_levels)
-  
-  # Filter: only keep Count > 0 and non-NA data
   melt_data_filtered <- melt_data[!is.na(melt_data$Count) & melt_data$Count > 0, ]
   
-  # Core/surface background - extend height
+  # ========== 4. Core/surface background ==========
   background_data <- unique(count_data[, .(Pos_real, type)])
   background_data <- background_data[order(Pos_real)]
-  
-  # Create extended background data
   extended_assays <- c("EXTENDED_TOP", assay_levels, "EXTENDED_BOTTOM")
-  
-  # Create complete background grid
   rects_data <- expand.grid(
     Pos_real = factor(pos_order, levels = pos_order),
     Assay = factor(extended_assays, levels = extended_assays)
   )
-  # Merge type information
   rects_data <- merge(rects_data, background_data, by = "Pos_real", all.x = TRUE)
   
-  # Binding interface sites
+  # ========== 5. Binding interface annotation ==========
   annotation_list <- list()
   for(assay in assay_order) {
     site_type_col <- paste0("site_type_", assay)
@@ -385,146 +372,173 @@ plot_combined_heatmap_final <- function(count_data, data_plot_mutation, assay_st
       site_info <- unique(data_plot_mutation[, .(Pos_real, site_type = get(site_type_col))])
       binding_sites <- site_info[site_type == "Binding interface site", Pos_real]
       if(length(binding_sites) > 0) {
-        cat("Binding sites for", assay, ":", binding_sites, "\n")
         annotation_list[[assay]] <- data.frame(Pos_real = binding_sites, Assay = assay)
       }
     }
   }
   annotation_df <- if(length(annotation_list) > 0) do.call(rbind, annotation_list) else NULL
-  
-  # Debug: check annotation_df
   if(!is.null(annotation_df)) {
-    cat("Annotation data frame created with", nrow(annotation_df), "rows\n")
-    print(head(annotation_df))
     annotation_df$Pos_real <- factor(annotation_df$Pos_real, levels = pos_order)
     annotation_df$Assay <- factor(annotation_df$Assay, levels = assay_levels)
-  } else {
-    cat("No binding interface sites found!\n")
-    # Check column names
-    cat("Available site_type columns:\n")
-    print(grep("site_type_", names(data_plot_mutation), value = TRUE))
   }
   
-  # Binder annotation information
-  annotation_labels <- data.frame(
-    Assay = assay_order,
-    Label = sapply(assay_order, function(a) {
-      if(!is.null(assay_stats[[a]])) {
-        stats <- assay_stats[[a]]
+  # ========== 6. Statistical information table ==========
+  create_stats_table <- function(assay_stats) {
+    stats_df <- data.frame(
+      Binder = character(),
+      n = character(),
+      m = character(),
+      OR = character(),
+      Fisher_p = character(),
+      stringsAsFactors = FALSE
+    )
+    
+    for(assay in assay_order) {
+      if(!is.null(assay_stats[[assay]])) {
+        stats <- assay_stats[[assay]]
         n_star <- p_to_stars(stats$n_p_value)
         m_star <- p_to_stars(stats$m_p_value)
-        paste0("n=", stats$n_interface, n_star,
-               " m=", stats$m_non_interface, m_star,
-               "\n→ m(OR)=", ifelse(!is.na(stats$core_surface_or),
-                                    sprintf("%.2f", stats$core_surface_or), "NA"))
-      } else "n=NA m=NA\n→ m(OR)=NA"
-    })
-  )
+        fisher_p_formatted <- ifelse(!is.na(stats$core_surface_p),
+                                     ifelse(stats$core_surface_p < 0.001, "< 0.001",
+                                            sprintf("%.3f", stats$core_surface_p)),
+                                     "NA")
+        
+        stats_df <- rbind(stats_df, data.frame(
+          Binder = assay,
+          n = paste0(stats$n_interface, n_star),
+          m = paste0(stats$m_non_interface, m_star),
+          OR = ifelse(!is.na(stats$core_surface_or),
+                      sprintf("%.2f", stats$core_surface_or), "NA"),
+          Fisher_p = fisher_p_formatted,
+          stringsAsFactors = FALSE
+        ))
+      }
+    }
+    return(stats_df)
+  }
   
-  # Main heatmap
+  stats_table <- create_stats_table(assay_stats)
+  
+  # ========== 7. Main heatmap ==========
   p_main <- ggplot() +
-    # Background core/surface - use extended background
-    geom_raster(
-      data = rects_data,
-      aes(x = Pos_real, y = Assay, fill = type),
-      alpha = 0.5
-    ) +
+    geom_raster(data = rects_data, aes(x = Pos_real, y = Assay, fill = type), alpha = 0.4) +
     scale_fill_manual(
-      values = c("core" = "#3A7D44", "surface" = "#DDF6D2"),
-      name = "Residue Type",
-      na.value = "white"
+      values = c("core" = "#75C2F6", "surface" = "#97E9AD"),
+      name = "Residue Type", na.value = "white"
     ) +
-    # Correctly use new_scale_fill()
     new_scale_fill() +
-    # Heatmap cells - only plot actual data regions
-    geom_raster(
-      data = melt_data_filtered,
-      aes(x = Pos_real, y = Assay, fill = Count)
-    ) +
+    geom_raster(data = melt_data_filtered, aes(x = Pos_real, y = Assay, fill = Count)) +
     scale_fill_gradientn(
-      colors = c("#FFF5F5", "#FFD8D8", "#F4270C"),
+      colors = c("#FFF5F5", "#FFD8D8", "#FF6A56"),
       limits = c(0, 20),
       breaks = seq(0, 20, 5),
       name = "Number of high-effect mutations"
     ) +
-    # Binding interface sites - use more prominent markers
-    {if(!is.null(annotation_df) && nrow(annotation_df) > 0)
-      geom_point(
-        data = annotation_df,
-        aes(x = Pos_real, y = Assay),
-        shape = 21, 
-        fill = "#0C226F", 
-        color = "#0C226F",
-        size = 1.5,
-        stroke = 1,
-        alpha = 0.8
-      )
-    } +
-    # Binder statistical information on right side
-    annotate(
-      "text",
-      x = length(pos_order) + 2,
-      y = seq_along(assay_levels) + 1,
-      label = annotation_labels$Label,
-      hjust = 0, size = 2.6, lineheight = 0.8
-    ) +
     labs(x = "Position", y = NULL) +
-    # Hide extended labels, only show actual assays
     scale_y_discrete(
       limits = extended_assays,
       labels = function(x) ifelse(x %in% c("EXTENDED_TOP", "EXTENDED_BOTTOM"), "", x)
     ) +
-    # Control display range and proportion
-    coord_fixed(
-      ratio = 3,
-      xlim = c(1, length(pos_order)),
-      ylim = c(1.5, length(assay_levels) + 0.5),
-      clip = "off",
-      expand = FALSE
-    ) +
-    theme_minimal(base_size = 10) +
+    coord_fixed(ratio = 3, expand = TRUE) +
+    theme_minimal(base_size = 8) +
     theme(
-      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
-      axis.text.y = element_text(size = 9),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+      axis.text.y = element_text(size = 8),
       axis.ticks = element_blank(),
       panel.grid = element_blank(),
-      panel.background = element_rect(fill = "transparent", color = NA),
-      plot.background = element_rect(fill = "transparent", color = NA),
-      plot.margin = margin(20, 100, 40, 10),
+      plot.background = element_rect(fill = "white", color = NA),
+      plot.margin = margin(25, 10, 25, 10),
       legend.position = "bottom",
-      panel.border = element_blank(),
-      panel.spacing = unit(0, "lines")
-    ) +
-    # Add explanatory text
-    annotate("text", x = length(pos_order) + 2, y = length(assay_levels) + 2,
-             label = "n: interface, m: non-interface\n→: core/surface OR",
-             hjust = 0, size = 2.2, color = "gray40", lineheight = 0.8) +
-    # Add binding interface legend
-    annotate("point", x = length(pos_order) + 2, y = length(assay_levels) + 3,
-             shape = 21, fill = "#0C226F", color = "#0C226F", size = 1.5, stroke = 1) +
-    annotate("text", x = length(pos_order) + 2.5, y = length(assay_levels) + 3,
-             label = "Binding interface site", hjust = 0, size = 2.2, vjust = 0.5)
+      legend.title = element_text(size = 8),
+      legend.text = element_text(size = 8)
+    )
   
-  # Use patchwork to combine
-  p_combined <- p_main + 
-    plot_annotation(
-      title = "High-effect mutations with core/surface background",
-      theme = theme(
-        plot.title = element_text(hjust = 0.5, size = 14, face = "bold", 
-                                  margin = margin(b = 20)),
-        plot.margin = margin(20, 20, 40, 20)
+  # Add binder purple dots
+  if(!is.null(annotation_df) && nrow(annotation_df) > 0){
+    p_main <- p_main +
+      geom_point(
+        data = annotation_df,
+        aes(x = Pos_real, y = Assay),
+        shape = 21, fill = "#C68EFD", color = "#C68EFD",
+        size = 1.5, stroke = 0.5
       )
-    ) &
-    theme(legend.position = "bottom",
-          legend.box.margin = margin(t = 20))
+  }
   
-  return(p_combined)
+  # ========== 8. Table ==========
+  tt <- ttheme_minimal(
+    core = list(
+      fg_params = list(hjust = 0, x = 0.05, fontsize = 8),
+      bg_params = list(fill = c("#f5f5f5", "#f5f5f5"))
+    ),
+    colhead = list(
+      fg_params = list(hjust = 0, x = 0.05, fontsize = 8),
+      bg_params = list(fill = "#09B636", alpha = 0.2)
+    )
+  )
+  table_grob <- tableGrob(stats_table, rows = NULL, theme = tt)
+  
+  # ========== 9. Table annotations ==========
+  star_note <- textGrob(
+    "* p < 0.05, ** p < 0.01, *** p < 0.001",
+    gp = gpar(fontsize = 8, col = "gray60"),
+    x = unit(0.05, "npc"), just = c("left", "center")
+  )
+  fisher_note <- textGrob(
+    paste(
+      "n: number of interface mutations; m: number of non-interface mutations\n",
+      "OR: odds ratio\n",
+      "Fisher p: p-value from Fisher's exact test (core vs surface)"
+    ),
+    gp = gpar(fontsize = 8, col = "gray40", lineheight = 1.2),
+    x = unit(0.05, "npc"), just = c("left", "center")
+  )
+  
+  # Binder purple dots annotation
+  binder_note <- textGrob(
+    "Purple dots: Binding interface sites",
+    gp = gpar(fontsize = 8, col = "#C68EFD"),
+    x = unit(0.05, "npc"), just = c("left", "center")
+  )
+  
+  # Add three rows below the table
+  table_with_notes <- gtable::gtable_add_rows(
+    table_grob,
+    heights = unit(c(4, 10, 4), "mm"),  # First row: stars, second row: fisher, third row: binder
+    pos = nrow(table_grob)
+  )
+  
+  # Add annotations
+  table_with_notes <- gtable::gtable_add_grob(
+    table_with_notes,
+    grobs = list(star_note, fisher_note, binder_note),
+    t = (nrow(table_grob) + 1):(nrow(table_grob) + 3),  # Three row positions
+    l = 1, r = ncol(table_with_notes),
+    clip = "off"
+  )
+  
+  # ========== 10. Combine ==========
+  grid_layout <- grid.arrange(
+    p_main,
+    table_with_notes,
+    nrow = 1,
+    widths = c(3.1, 1.6),
+    top = textGrob(
+      "High-effect mutations with core/surface background",
+      gp = gpar(fontsize = 8),
+      just = "center"
+    )
+  )
+  
+  return(grid_layout)
 }
 
 # Generate combined heatmap
 combined_heatmap <- plot_combined_heatmap_final(heatmap_data, data_plot_mutation_processed, assay_stats)
+
+# Display heatmap
 print(combined_heatmap)
 
 # Save plot
-ggsave("combined_mutation_heatmap_final.pdf", 
-       combined_heatmap, device = cairo_pdf, width = 18, height = 9)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure4/20251011/combined_mutation_heatmap_final.pdf", 
+       combined_heatmap, device = cairo_pdf, width = 25, height = 9)
+
