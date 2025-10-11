@@ -1,0 +1,517 @@
+library(krasddpcams)
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(tidyr)
+
+wt_aa <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
+
+#### core comparison
+plot_core_ddG_comparison_between_2_binders <-  function(
+    input1, assay_sele1, 
+    input2, assay_sele2, 
+    anno_file, core_surface_file,
+    dist_cutoff = 5
+) {
+  # Read annotation file and define core/surface types
+  anno <- fread(anno_file)
+  core_surface <- fread(core_surface_file)
+  anno <- merge(core_surface, anno, by = "Pos", all = TRUE)
+  
+  core_threshold_sasa <- 0.25
+  surface_threshold_sasa <- 0.25
+  
+  anno <- anno %>%
+    mutate(type = case_when(
+      RASA <= core_threshold_sasa ~ "core",
+      RASA >= surface_threshold_sasa ~ "surface"
+    )) %>%
+    filter(!is.na(type))
+  
+  # Read and preprocess ddG data
+  ddG1 <- krasddpcams__read_ddG(input1, assay_sele1)
+  ddG1 <- ddG1[, c(1:4, 19:20, 23:24)]
+  colnames(ddG1)[5:8] <- paste0(colnames(ddG1)[5:8], "_", assay_sele1)
+  
+  ddG2 <- krasddpcams__read_ddG(input2, assay_sele2)
+  ddG2 <- ddG2[, c(1:4, 19:20, 23:24)]
+  colnames(ddG2)[5:8] <- paste0(colnames(ddG2)[5:8], "_", assay_sele2)
+  
+  anno[, Pos_real := Pos]
+  data_plot_mutation1 <- merge(ddG1, anno, by = "Pos_real", all = TRUE)
+  data_plot_mutation <- merge(data_plot_mutation1, ddG2, by = c("Pos_real", "id", "wt_codon", "mt_codon"), all = TRUE)
+  
+  # Calculate weighted mean and threshold, build data_plot1 and data_plot2 and annotate site types
+  prepare_data_plot <- function(input, assay) {
+    weighted_mean_ddG <- krasddpcams__get_weighted_mean_abs_ddG(input, assay)
+    weighted_mean_ddG[, Pos := Pos_real]
+    dp <- merge(weighted_mean_ddG, anno, by = "Pos", all = TRUE)
+    dp[, binding_type := "allosteric site"]
+    dp[get(paste0("scHAmin_ligand_", assay)) < dist_cutoff, binding_type := "binding site"]
+    threshold <- dp[binding_type == "binding site",
+                    sum(abs(mean) / sigma^2, na.rm = TRUE) / sum(1 / sigma^2, na.rm = TRUE)]
+    
+    dp[, paste0("binding_type_", assay) := "allosteric site"]
+    dp[get(paste0("scHAmin_ligand_", assay)) < dist_cutoff, paste0("binding_type_", assay) := "binding site"]
+    dp[, paste0("binding_type_gtp_included_", assay) := get(paste0("binding_type_", assay))]
+    dp[get(paste0("GXPMG_scHAmin_ligand_RAF1")) < dist_cutoff, paste0("binding_type_gtp_included_", assay) := "GTP binding site"]
+    dp[, paste0("site_type_", assay) := "Reminder"]
+    dp[get(paste0("binding_type_gtp_included_", assay)) == "binding site", paste0("site_type_", assay) := "Binding interface site"]
+    dp[get(paste0("binding_type_gtp_included_", assay)) == "GTP binding site", paste0("site_type_", assay) := "GTP binding interface site"]
+    
+    list(data_plot = dp, threshold = threshold)
+  }
+  
+  res1 <- prepare_data_plot(input1, assay_sele1)
+  res2 <- prepare_data_plot(input2, assay_sele2)
+  
+  data_plot1 <- res1$data_plot
+  data_plot2 <- res2$data_plot
+  reg_threshold1 <- res1$threshold
+  reg_threshold2 <- res2$threshold
+  
+  # Define classification function
+  classify_mutations <- function(data, assay_sele, data_plot, threshold) {
+    data[, paste0("mutation_type_", assay_sele) := "Reminder"]
+    data[, paste0("allosteric_mutation_", assay_sele) := 
+           p.adjust(krasddpcams__pvalue(abs(get(paste0("mean_", assay_sele))) - threshold,
+                                        get(paste0("std_", assay_sele))), method = "BH") < 0.05 &
+           (abs(get(paste0("mean_", assay_sele))) - threshold) > 0]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "Binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "Orthosteric site huge differences"]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "Binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == FALSE,
+         paste0("mutation_type_", assay_sele) := "Orthosteric site small differences"]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "GTP binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "GTP binding allosteric mutation"]
+    
+    data[Pos %in% data_plot[!get(paste0("site_type_", assay_sele)) %in% 
+                              c("GTP binding interface site", "Binding interface site"), Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "Allosteric mutation"]
+    
+    data[, paste0("mutation_type_", assay_sele) := factor(get(paste0("mutation_type_", assay_sele)),
+                                                          levels = c("Orthosteric site huge differences",
+                                                                     "Orthosteric site small differences",
+                                                                     "GTP binding allosteric mutation",
+                                                                     "Allosteric mutation",
+                                                                     "Reminder"))]
+    return(data)
+  }
+  
+  data_plot_mutation <- classify_mutations(data_plot_mutation, assay_sele1, data_plot1, reg_threshold1)
+  data_plot_mutation <- classify_mutations(data_plot_mutation, assay_sele2, data_plot2, reg_threshold2)
+  
+  # Process plotting data
+  data_plot_mutation <- data_plot_mutation %>%
+    mutate(
+      !!paste0("mean_kcal_mol_", assay_sele1, "_abs") := abs(get(paste0("mean_kcal/mol_", assay_sele1))),
+      !!paste0("mean_kcal_mol_", assay_sele2, "_neg_abs") := -abs(get(paste0("mean_kcal/mol_", assay_sele2)))
+    ) %>%
+    filter(type == "core") %>%
+    drop_na(all_of(c(paste0("mean_kcal_mol_", assay_sele1, "_abs"),
+                     paste0("mean_kcal_mol_", assay_sele2, "_neg_abs"))))
+  
+  # Define colors
+  custom_colors <- c(
+    "Orthosteric site huge differences" = alpha("#F4270C", 1.0),    
+    "Orthosteric site small differences" = alpha("#FFB0A5", 1),   # 60% opacity
+    "GTP binding allosteric mutation" = alpha("#1B38A6", 1),      # 80% opacity
+    "Allosteric mutation" = alpha("#F4AD0C", 1),                  # 90% opacity
+    "Reminder" = alpha("grey", 0.6)                                 # 50% opacity
+  )
+  # Maximum Y value
+  max_y <- max(
+    max(data_plot_mutation[[paste0("mean_kcal_mol_", assay_sele1, "_abs")]], na.rm = TRUE),
+    max(abs(data_plot_mutation[[paste0("mean_kcal_mol_", assay_sele2, "_neg_abs")]]), na.rm = TRUE)
+  )
+  
+  core_positions <- sort(unique(data_plot_mutation$Pos_real))
+  y_breaks <- sort(c(seq(0, max_y, by = 1), seq(-1, -max_y, by = -1)))
+  y_labels <- abs(y_breaks)
+  
+  # Plot
+  p <- ggplot(data_plot_mutation, aes(x = factor(Pos_real))) +
+    geom_point(aes(
+      y = !!sym(paste0("mean_kcal_mol_", assay_sele1, "_abs")),
+      color = get(paste0("mutation_type_", assay_sele1))
+    ), alpha = 0.7, size = 1.5) +
+    geom_point(aes(
+      y = !!sym(paste0("mean_kcal_mol_", assay_sele2, "_neg_abs")),
+      color = get(paste0("mutation_type_", assay_sele2))
+    ), alpha = 0.7, shape = 17, size = 1.5)+
+    scale_color_manual(values = custom_colors) +
+    geom_hline(yintercept = c(reg_threshold1, -reg_threshold2),
+               linetype = "dashed", color = "black") +
+    labs(
+      title = paste0("KRAS core Mutation Effects on ", assay_sele1, " and ", assay_sele2),
+      x = "Amino Acid Position (core)",
+      y = expression(Delta*Delta*"G (kcal/mol)"),
+      color = "Mutation Type"
+    ) +
+    scale_x_discrete(breaks = core_positions) +
+    scale_y_continuous(
+      limits = c(-3, 3),                   # Fixed symmetric range ±3
+      breaks = seq(-3, 3, 1),              # Tick marks
+      labels = function(x) sprintf("%.1f", abs(x))  # Labels displayed as positive values
+    ) +
+    annotate("text", x = Inf, y = 2.8, 
+             label = substitute("|" * Delta * Delta * "G-" * a * "| kcal/mol", 
+                                list(a = assay_sele1)),
+             hjust = 1.1, size = 3.5) +
+    annotate("text", x = Inf, y = -2.8, 
+             label = substitute("|" * Delta * Delta * "G-" * a * "| kcal/mol", 
+                                list(a = assay_sele2)),
+             hjust = 1.1, size = 3.5) +
+    ggpubr::theme_classic2() +
+    theme(
+      axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),
+      axis.text.y = element_text(size = 8),
+      text = element_text(size = 8),
+      legend.position = "none",
+      legend.text = element_text(size = 8)
+    )
+  
+  return(list(
+    plot = p
+  ))
+  
+}
+
+
+#### surface comparison
+plot_surface_ddG_comparison_between_2_binders <-  function(
+    input1, assay_sele1, 
+    input2, assay_sele2, 
+    anno_file, core_surface_file,
+    dist_cutoff = 5
+) {
+  # Read annotation file and define core/surface types
+  anno <- fread(anno_file)
+  core_surface <- fread(core_surface_file)
+  anno <- merge(core_surface, anno, by = "Pos", all = TRUE)
+  
+  core_threshold_sasa <- 0.25
+  surface_threshold_sasa <- 0.26
+  
+  anno <- anno %>%
+    mutate(type = case_when(
+      RASA <= core_threshold_sasa ~ "core",
+      RASA >= surface_threshold_sasa ~ "surface"
+    )) %>%
+    filter(!is.na(type))
+  
+  # Read and preprocess ddG data
+  ddG1 <- krasddpcams__read_ddG(input1, assay_sele1)
+  ddG1 <- ddG1[, c(1:4, 19:20, 23:24)]
+  colnames(ddG1)[5:8] <- paste0(colnames(ddG1)[5:8], "_", assay_sele1)
+  
+  ddG2 <- krasddpcams__read_ddG(input2, assay_sele2)
+  ddG2 <- ddG2[, c(1:4, 19:20, 23:24)]
+  colnames(ddG2)[5:8] <- paste0(colnames(ddG2)[5:8], "_", assay_sele2)
+  
+  anno[, Pos_real := Pos]
+  data_plot_mutation1 <- merge(ddG1, anno, by = "Pos_real", all = TRUE)
+  data_plot_mutation <- merge(data_plot_mutation1, ddG2, by = c("Pos_real", "id", "wt_codon", "mt_codon"), all = TRUE)
+  
+  # Calculate weighted mean and threshold, build data_plot1 and data_plot2 and annotate site types
+  prepare_data_plot <- function(input, assay) {
+    weighted_mean_ddG <- krasddpcams__get_weighted_mean_abs_ddG(input, assay)
+    weighted_mean_ddG[, Pos := Pos_real]
+    dp <- merge(weighted_mean_ddG, anno, by = "Pos", all = TRUE)
+    dp[, binding_type := "allosteric site"]
+    dp[get(paste0("scHAmin_ligand_", assay)) < dist_cutoff, binding_type := "binding site"]
+    threshold <- dp[binding_type == "binding site",
+                    sum(abs(mean) / sigma^2, na.rm = TRUE) / sum(1 / sigma^2, na.rm = TRUE)]
+    
+    dp[, paste0("binding_type_", assay) := "allosteric site"]
+    dp[get(paste0("scHAmin_ligand_", assay)) < dist_cutoff, paste0("binding_type_", assay) := "binding site"]
+    dp[, paste0("binding_type_gtp_included_", assay) := get(paste0("binding_type_", assay))]
+    dp[get(paste0("GXPMG_scHAmin_ligand_RAF1")) < dist_cutoff, paste0("binding_type_gtp_included_", assay) := "GTP binding site"]
+    dp[, paste0("site_type_", assay) := "Reminder"]
+    dp[get(paste0("binding_type_gtp_included_", assay)) == "binding site", paste0("site_type_", assay) := "Binding interface site"]
+    dp[get(paste0("binding_type_gtp_included_", assay)) == "GTP binding site", paste0("site_type_", assay) := "GTP binding interface site"]
+    
+    list(data_plot = dp, threshold = threshold)
+  }
+  
+  res1 <- prepare_data_plot(input1, assay_sele1)
+  res2 <- prepare_data_plot(input2, assay_sele2)
+  
+  data_plot1 <- res1$data_plot
+  data_plot2 <- res2$data_plot
+  reg_threshold1 <- res1$threshold
+  reg_threshold2 <- res2$threshold
+  
+  # Define classification function
+  classify_mutations <- function(data, assay_sele, data_plot, threshold) {
+    data[, paste0("mutation_type_", assay_sele) := "Reminder"]
+    data[, paste0("allosteric_mutation_", assay_sele) := 
+           p.adjust(krasddpcams__pvalue(abs(get(paste0("mean_", assay_sele))) - threshold,
+                                        get(paste0("std_", assay_sele))), method = "BH") < 0.05 &
+           (abs(get(paste0("mean_", assay_sele))) - threshold) > 0]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "Binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "Orthosteric site huge differences"]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "Binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == FALSE,
+         paste0("mutation_type_", assay_sele) := "Orthosteric site small differences"]
+    
+    data[Pos %in% data_plot[get(paste0("site_type_", assay_sele)) == "GTP binding interface site", Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "GTP binding allosteric mutation"]
+    
+    data[Pos %in% data_plot[!get(paste0("site_type_", assay_sele)) %in% 
+                              c("GTP binding interface site", "Binding interface site"), Pos] &
+           get(paste0("allosteric_mutation_", assay_sele)) == TRUE,
+         paste0("mutation_type_", assay_sele) := "Allosteric mutation"]
+    
+    data[, paste0("mutation_type_", assay_sele) := factor(get(paste0("mutation_type_", assay_sele)),
+                                                          levels = c("Orthosteric site huge differences",
+                                                                     "Orthosteric site small differences",
+                                                                     "GTP binding allosteric mutation",
+                                                                     "Allosteric mutation",
+                                                                     "Reminder"))]
+    return(data)
+  }
+  
+  data_plot_mutation <- classify_mutations(data_plot_mutation, assay_sele1, data_plot1, reg_threshold1)
+  data_plot_mutation <- classify_mutations(data_plot_mutation, assay_sele2, data_plot2, reg_threshold2)
+  
+  # Process plotting data
+  data_plot_mutation <- data_plot_mutation %>%
+    mutate(
+      !!paste0("mean_kcal_mol_", assay_sele1, "_abs") := abs(get(paste0("mean_kcal/mol_", assay_sele1))),
+      !!paste0("mean_kcal_mol_", assay_sele2, "_neg_abs") := -abs(get(paste0("mean_kcal/mol_", assay_sele2)))
+    ) %>%
+    filter(type == "surface") %>%
+    drop_na(all_of(c(paste0("mean_kcal_mol_", assay_sele1, "_abs"),
+                     paste0("mean_kcal_mol_", assay_sele2, "_neg_abs"))))
+  
+  # Define colors
+  custom_colors <- c(
+    "Orthosteric site huge differences" = alpha("#F4270C", 1.0),    
+    "Orthosteric site small differences" = alpha("#FFB0A5", 1),   # 60% opacity
+    "GTP binding allosteric mutation" = alpha("#1B38A6", 1),      # 80% opacity
+    "Allosteric mutation" = alpha("#F4AD0C", 1),                  # 90% opacity
+    "Reminder" = alpha("grey", 0.6)                                 # 50% opacity
+  )
+  
+  # Maximum Y value
+  max_y <- max(
+    max(data_plot_mutation[[paste0("mean_kcal_mol_", assay_sele1, "_abs")]], na.rm = TRUE),
+    max(abs(data_plot_mutation[[paste0("mean_kcal_mol_", assay_sele2, "_neg_abs")]]), na.rm = TRUE)
+  )
+  
+  surface_positions <- sort(unique(data_plot_mutation$Pos_real))
+  y_breaks <- sort(c(seq(0, max_y, by = 1), seq(-1, -max_y, by = -1)))
+  y_labels <- abs(y_breaks)
+  
+  p <- ggplot(data_plot_mutation, aes(x = factor(Pos_real))) +
+    geom_point(aes(
+      y = !!sym(paste0("mean_kcal_mol_", assay_sele1, "_abs")),
+      color = get(paste0("mutation_type_", assay_sele1))
+    ), alpha = 0.7, size = 1.5) +
+    geom_point(aes(
+      y = !!sym(paste0("mean_kcal_mol_", assay_sele2, "_neg_abs")),
+      color = get(paste0("mutation_type_", assay_sele2))
+    ), alpha = 0.7, shape = 17, size = 1.5) +
+    scale_color_manual(values = custom_colors) +
+    geom_hline(yintercept = c(reg_threshold1, -reg_threshold2), linetype = "dashed", color = "black") +
+    labs(
+      title = paste0("KRAS surface Mutation Effects on ", assay_sele1, " and ", assay_sele2),
+      x = "Amino Acid Position (surface)",
+      y = expression(Delta*Delta*"G (kcal/mol)"),
+      color = "Mutation Type"
+    ) +
+    scale_x_discrete(breaks = surface_positions) +
+    scale_y_continuous(
+      limits = c(-3, 3),                   # Fixed symmetric range ±3
+      breaks = seq(-3, 3, 1),              # Tick marks
+      labels = function(x) sprintf("%.1f", abs(x))  # Labels displayed as positive values
+    ) +
+    annotate("text", x = Inf, y = 3 * 0.95, 
+             label = substitute("|" * Delta * Delta * "G-" * a * "| kcal/mol", list(a = assay_sele1)),
+             hjust = 1.1, size = 3.5) +
+    annotate("text", x = Inf, y = -3 * 0.95, 
+             label = substitute("|" * Delta * Delta * "G-" * a * "| kcal/mol", list(a = assay_sele2)),
+             hjust = 1.1, size = 3.5) +
+    ggpubr::theme_classic2() +
+    theme(
+      axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),
+      axis.text.y = element_text(size = 8),
+      text = element_text(size = 8),
+      legend.position = "none",
+      legend.text = element_text(size = 8)
+    )
+  
+  return(list(
+    #data_plot_mutation = data_plot_mutation,
+    plot = p
+  ))
+  
+}
+
+
+
+##===================================================
+##########   Batch single plot generation
+##=================================================
+compare_all_binders <- function(
+    binders,
+    input_files,      # Tell function the input file path for each binder
+    anno_file,
+    core_surface_file,
+    outdir_core = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s5/20251011/core",
+    outdir_surface = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s5/20251011/surface"
+) {
+  # Create output directories
+  if (!dir.exists(outdir_core)) dir.create(outdir_core, recursive = TRUE)
+  if (!dir.exists(outdir_surface)) dir.create(outdir_surface, recursive = TRUE)
+  
+  # Iterate through all pairwise combinations of binders
+  for (i in 1:(length(binders)-1)) {
+    for (j in (i+1):length(binders)) {
+      assay1 <- binders[i]
+      assay2 <- binders[j]
+      
+      cat("Comparing:", assay1, "vs", assay2, "\n")
+      
+      input1 <- input_files[[assay1]]
+      input2 <- input_files[[assay2]]
+      
+      # ===== Core plot =====
+      core_res <- plot_core_ddG_comparison_between_2_binders(
+        input1 = input1, assay_sele1 = assay1,
+        input2 = input2, assay_sele2 = assay2,
+        anno_file = anno_file,
+        core_surface_file = core_surface_file
+      )
+      
+      ggsave(
+        filename = file.path(outdir_core, paste0("core_", assay1, "_vs_", assay2, ".pdf")),
+        plot = core_res$plot,
+        width = 9, height = 5
+      )
+      
+      # ===== Surface plot =====
+      surface_res <- plot_surface_ddG_comparison_between_2_binders(
+        input1 = input1, assay_sele1 = assay1,
+        input2 = input2, assay_sele2 = assay2,
+        anno_file = anno_file,
+        core_surface_file = core_surface_file
+      )
+      
+      ggsave(
+        filename = file.path(outdir_surface, paste0("surface_", assay1, "_vs_", assay2, ".pdf")),
+        plot = surface_res$plot,
+        width = 10, height = 5, device = cairo_pdf
+      )
+    }
+  }
+}
+
+input_files <- list(
+  RAF1   = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_RAF1.txt",
+  SOS1   = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_SOS.txt",
+  K55    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K55.txt",
+  K27    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K27.txt",
+  RALGDS = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_RAL.txt",
+  PI3KCG = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_PI3.txt",
+  K13    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt",
+  K19    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt"
+)
+
+binders <- c("RAF1", "SOS1", "K55", "K27", "RALGDS", "PI3KCG", "K13", "K19")
+
+anno_file <- "C:/Users/36146/OneDrive - USTC/DryLab/base_information_for_K13_K19_project/anno_final_for_8.csv"
+core_surface_file <- "C:/Users/36146/OneDrive - USTC/DryLab/base_information_for_K13_K19_project/KRAS_WT_166_monomer_get_rasa_20250701_2.csv"
+
+# Batch run
+compare_all_binders(binders, input_files, anno_file, core_surface_file)
+
+##=================================
+#### Combine plots on one figure
+##===================================
+
+library(ggpubr)
+
+# ========== Plot combining function ==========
+combine_core_surface_plots <- function(binders, input_files, anno_file, core_surface_file, output_dir = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s5/20251011/combined_plot") {
+  # Create output directory
+  dir.create(output_dir, showWarnings = FALSE)
+  
+  # All pairwise combinations
+  binder_pairs <- combn(binders, 2, simplify = FALSE)
+  
+  core_plots <- list()
+  surface_plots <- list()
+  
+  # Loop to generate all plots
+  for (pair in binder_pairs) {
+    b1 <- pair[1]
+    b2 <- pair[2]
+    in1 <- input_files[[b1]]
+    in2 <- input_files[[b2]]
+    
+    # Core plot
+    res_core <- plot_core_ddG_comparison_between_2_binders(
+      input1 = in1, assay_sele1 = b1,
+      input2 = in2, assay_sele2 = b2,
+      anno_file = anno_file,
+      core_surface_file = core_surface_file
+    )
+    core_plots[[paste(b1, b2, sep = "_vs_")]] <- res_core$plot
+    
+    # Surface plot
+    res_surface <- plot_surface_ddG_comparison_between_2_binders(
+      input1 = in1, assay_sele1 = b1,
+      input2 = in2, assay_sele2 = b2,
+      anno_file = anno_file,
+      core_surface_file = core_surface_file
+    )
+    surface_plots[[paste(b1, b2, sep = "_vs_")]] <- res_surface$plot
+  }
+  
+  # Combine plots (3 plots per row)
+  core_combined <- ggarrange(plotlist = core_plots, ncol = 4, nrow = ceiling(length(core_plots)/3))
+  surface_combined <- ggarrange(plotlist = surface_plots, ncol = 4, nrow = ceiling(length(surface_plots)/3))
+  
+  # Save
+  ggsave(file.path(output_dir, "core_all_binders.png"), core_combined, width = 37, height = 36, dpi = 100)
+  ggsave(file.path(output_dir, "surface_all_binders.png"), surface_combined, width = 37, height = 36, dpi = 100)
+  
+  return(list(
+    core_combined = core_combined,
+    surface_combined = surface_combined
+  ))
+}
+
+# ========== Usage example ==========
+binders <- c("RAF1", "SOS1", "K55", "K27", "RALGDS", "PI3KCG", "K13", "K19")
+
+input_files <- list(
+  RAF1   = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_RAF1.txt",
+  SOS1   = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_SOS.txt",
+  K55    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K55.txt",
+  K27    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K27.txt",
+  RALGDS = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_RAL.txt",
+  PI3KCG = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_PI3.txt",
+  K13    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt",
+  K19    = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt"
+)
+
+res <- combine_core_surface_plots(
+  binders = binders,
+  input_files = input_files,
+  anno_file = "C:/Users/36146/OneDrive - USTC/DryLab/base_information_for_K13_K19_project/anno_final_for_8.csv",
+  core_surface_file = "C:/Users/36146/OneDrive - USTC/DryLab/base_information_for_K13_K19_project/KRAS_WT_166_monomer_get_rasa_20250701_2.csv"
+)
