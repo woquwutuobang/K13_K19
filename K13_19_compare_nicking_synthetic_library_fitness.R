@@ -68,10 +68,10 @@ compare_fitness_libraries_singlemut <- function(
     
     # Plot
     p <- ggplot(data_complete, aes(x = fitness1, y = fitness2)) +
-      geom_point(color = "#48B3AF", alpha = point_alpha, size = 1.5) +
-      geom_smooth(method = "lm", color = "#9A3F3F", se = TRUE, 
+      geom_point(color = "#75C2F6", alpha = point_alpha, size = 1.5) +
+      geom_smooth(method = "lm", color = "#FF6A56", se = TRUE, 
                   fill = "gray70", alpha = 0.3) +
-      coord_cartesian(xlim = c(-1.5, 1.0), ylim = c(-1.5, 0.5)) +   # 固定坐标范围
+      coord_cartesian(xlim = c(-1.5, 1.0), ylim = c(-1.5, 0.5)) +   # Fixed coordinate range
       labs(
         title = title,
         x = x_label,
@@ -82,11 +82,11 @@ compare_fitness_libraries_singlemut <- function(
                label = paste0("r = ", r_value, "\np = ", 
                               ifelse(p_value < 0.0001, "< 0.0001", p_value)),
                hjust = 0, vjust = 1, size = 2.5,
-               color = "black", fontface = "bold") +
+               color = "black") +
       theme_classic(base_size = 8) +  # 全局字体 8pt
       theme(
         panel.grid = element_blank(),
-        plot.title = element_text(hjust = 0.5, size = 8, face = "bold"),
+        plot.title = element_text(hjust = 0.5, size = 8),
         axis.text = element_text(size = 8, colour = "black"),
         axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),  # X轴旋转90度
         axis.title = element_text(size = 8),
@@ -116,14 +116,14 @@ compare_fitness_libraries_singlemut <- function(
     combined_plot <- p_total + block_plots[[1]] + block_plots[[2]] + block_plots[[3]] +
       plot_annotation(
         title = main_title,
-        theme = theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+        theme = theme(plot.title = element_text(hjust = 0.5, size = 8))
       ) +
       plot_layout(ncol = 4)
   } else {
     combined_plot <- p_total + wrap_plots(block_plots) +
       plot_annotation(
         title = main_title,
-        theme = theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+        theme = theme(plot.title = element_text(hjust = 0.5, size = 8))
       ) +
       plot_layout(ncol = min(length(blocks) + 1, 4))
   }
@@ -146,53 +146,57 @@ compare_fitness_libraries_singlemut <- function(
   return(list(data = data, plot = combined_plot))
 }
 
-# =====================
-# =====================
 
-# Define wild-type amino acid sequence
+
+#Execute function
 wt_aa <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
-### Abundance comparison
-result_abundance <- compare_fitness_libraries_singlemut(
-  # Library 1 (nicking library)
-  lib1_block1 = "path/to/abundance_block1_nicking.RData",
-  lib1_block2 = "path/to/abundance_block2_nicking.RData", 
-  lib1_block3 = "path/to/abundance_block3_nicking.RData",
+
+###Abundance
+result <- compare_fitness_libraries_singlemut(
+  #nicking library data
+  lib1_block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_1_fitness_replicates_fullseq.RData",
+  lib1_block2 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_2_fitness_replicates_fullseq.RData", 
+  lib1_block3 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_3_fitness_replicates_fullseq.RData",
   
-  # Library 2 (synthetic library)
-  lib2_block1 = "path/to/abundance_block1_synthetic.RData",
-  lib2_block2 = "path/to/abundance_block2_synthetic.RData",
-  lib2_block3 = "path/to/abundance_block3_synthetic.RData",
+  #synthetic library data
+  lib2_block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_1_fitness_replicates_fullseq.RData",
+  lib2_block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/Abundance_block2_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
+  lib2_block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/Abundance_block3_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
   
   wt_aa = wt_aa,
-  output_file = "path/to/abundance_comparison.pdf",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251010/Comparison_of_fitness_data_Abundance.pdf",
   x_lab = "Abundance nicking library fitness",
   y_lab = "Abundance synthetic library fitness",
   main_title = "Comparison of fitness data between synthetic library and nicking library",
   point_alpha = 0.3,
-  plot_width = 16,
-  plot_height = 5
+  plot_width = 12,
+  plot_height = 3
 )
 
-### RAF1 binding comparison
-result_raf1 <- compare_fitness_libraries_singlemut(
-  # Library 1 (nicking library)
-  lib1_block1 = "path/to/raf1_block1_nicking.RData",
-  lib1_block2 = "path/to/raf1_block2_nicking.RData", 
-  lib1_block3 = "path/to/raf1_block3_nicking.RData",
+
+
+
+
+###RAF1
+result <- compare_fitness_libraries_singlemut(
+  #nicking library data
+  lib1_block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
+  lib1_block2 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_2_fitness_replicates_fullseq.RData", 
+  lib1_block3 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_3_fitness_replicates_fullseq.RData",
   
-  # Library 2 (synthetic library)
-  lib2_block1 = "path/to/raf1_block1_synthetic.RData",
-  lib2_block2 = "path/to/raf1_block2_synthetic.RData",
-  lib2_block3 = "path/to/raf1_block3_synthetic.RData",
+  #synthetic library data
+  lib2_block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
+  lib2_block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/RAF_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  lib2_block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/RAF_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   
   wt_aa = wt_aa,
-  output_file = "path/to/raf1_comparison.pdf",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251010/Comparison_of_fitness_data_RAF1.pdf",
   x_lab = "RAF1 nicking library fitness",
   y_lab = "RAF1 synthetic library fitness",
   main_title = "Comparison of fitness data between synthetic library and nicking library",
   point_alpha = 0.3,
-  plot_width = 16,
-  plot_height = 5
-
+  plot_width = 12,
+  plot_height = 3
 )
+
