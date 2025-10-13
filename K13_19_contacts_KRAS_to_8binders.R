@@ -93,9 +93,9 @@ contact_heatmap_9partners <- ggplot(df_plot, aes(x = ResLabel, y = Partner, fill
   geom_tile(color = "black", width = 1, height = 1) +
   scale_fill_manual(
     values = c(
-      "None" = "white",
-      "Contact" = "yellow",
-      "Common contact" = "orange"
+      "None" = alpha("white", 1),           # 80% transparency
+      "Contact" = alpha("#F1DD10", 0.8),      # 80% transparency
+      "Common contact" = alpha("#F4AD0C", 0.8) # 80% transparency
     ),
     name = "Contact Type"
   ) +
@@ -125,10 +125,29 @@ ggsave("path/to/kras_binding_interface_contact_map_9partners.pdf",
        plot = contact_heatmap_9partners, 
        width = 14, height = 16, dpi = 300)
 
+
+
+
+
+##========================================================
 ### Analysis 2: 7 binding partners + 1 SOS interface
+##========================================================
+library(ggplot2)
+library(dplyr)
+
+# Wild-type KRAS sequence
+wt_aa <- unlist(strsplit("MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM", ""))
+positions <- 1:length(wt_aa)
 
 # Define binding interfaces (single SOS interface)
+K13_binding_interface <- c(63,68,87,88,90,91,92,94,95,96,97,98,99,101,102,105,106,107,129,133,136,137,138) 
+K19_binding_interface <- c(68,87,88,90,91,92,94,95,97,98,99,101,102,105,107,108,125,129,133,136,137) 
+RAF1_binding_interface <- c(21,25,29,31,33,36,37,38,39,40,41,67,71) 
 SOS1_binding_interface <- c(1, 22, 24, 25, 26, 27, 31, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 50, 56, 59, 61, 64, 65, 66, 67, 70, 149, 153)
+K55_binding_interface <- c(5,24,25,31,33,36,37,38,39,40,54,56,64,66,67,70,73,74)
+K27_binding_interface <- c(21,24,25,27,29,30,31,32,33,34,35,36,38,39,40,41,43,52,54,67,70,71)
+RALGDS_binding_interface <- c(24, 25, 31, 33, 36, 37, 38, 39, 40, 41, 56, 64, 67)
+PIK3CG_binding_interface <- c(3, 21, 24, 25, 33, 36, 37, 38, 39, 40, 41, 63, 64, 70, 73)
 
 # Create data frame for 8 binding partners
 df2 <- data.frame(
@@ -155,10 +174,8 @@ all_contacts2 <- list(K13_binding_interface, K19_binding_interface,
                       RAF1_binding_interface, SOS1_binding_interface, 
                       K55_binding_interface, K27_binding_interface, 
                       RALGDS_binding_interface, PIK3CG_binding_interface)
-
 contact_freq2 <- table(unlist(all_contacts2))
 common_contact_positions2 <- as.integer(names(contact_freq2[contact_freq2 >= 2]))
-
 df2$Common <- df2$Position %in% common_contact_positions2 & df2$Contact
 
 # Extract all unique contact positions
@@ -166,6 +183,9 @@ all_contact_positions2 <- sort(unique(c(K13_binding_interface, K19_binding_inter
                                         RAF1_binding_interface, SOS1_binding_interface,
                                         K55_binding_interface, K27_binding_interface, 
                                         RALGDS_binding_interface, PIK3CG_binding_interface)))
+
+# Create residue labels
+residue_labels <- paste0(wt_aa[all_contact_positions2], all_contact_positions2)
 
 # Create plotting subset
 df_plot2 <- df2 %>%
@@ -182,22 +202,21 @@ df_plot2$Partner <- factor(df_plot2$Partner,
 # Create fill categories
 df_plot2$Fill <- ifelse(df_plot2$Common, "Common contact", 
                         ifelse(df_plot2$Contact, "Contact", "None"))
-df_plot2$Fill <- factor(df_plot2$Fill, levels = c("None", "Contact", "Common contact"))
 
-# Create second contact map heatmap
+# Create contact map heatmap with transparency
 contact_heatmap_8partners <- ggplot(df_plot2, aes(x = ResLabel, y = Partner, fill = Fill)) +
   geom_tile(color = "black", width = 1, height = 1) +
   scale_fill_manual(
     values = c(
-      "None" = "white",
-      "Contact" = "yellow", 
-      "Common contact" = "orange"
+      "None" = alpha("white", 1),           # 80% transparency
+      "Contact" = alpha("#F1DD10", 0.5),      # 80% transparency
+      "Common contact" = alpha("#F4AD0C", 1) # 80% transparency
     ),
     name = "Contact Type"
   ) +
   scale_y_discrete(limits = rev(levels(df_plot2$Partner))) +
   coord_fixed(ratio = 1) +
-  theme_minimal(base_size = 14) +
+  theme_minimal(base_size = 8) +
   labs(
     x = "KRAS Residue", 
     y = "Binding Partner", 
@@ -205,19 +224,22 @@ contact_heatmap_8partners <- ggplot(df_plot2, aes(x = ResLabel, y = Partner, fil
     subtitle = "Common contacts (orange) appear in ≥2 binding partners"
   ) +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, face = "bold"),
-    axis.text.y = element_text(face = "bold"),
-    axis.title.x = element_text(face = "bold", size = 12),
-    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(),
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8),
     panel.grid = element_blank(),
-    legend.title = element_text(face = "bold"),
-    legend.text = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.title = element_text(),
+    legend.text = element_text(),
+    plot.title = element_text(hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5)
   )
 
+# Display the plot
+print(contact_heatmap_8partners)
+
 # Save the second plot
-ggsave("path/to/kras_binding_interface_contact_map_8partners.pdf", 
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure3/20251010/kras_binding_interface_contact_map_8partners.pdf", 
        plot = contact_heatmap_8partners, 
        width = 14, height = 16, dpi = 300)
 
