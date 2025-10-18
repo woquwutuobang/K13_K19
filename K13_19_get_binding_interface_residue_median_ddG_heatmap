@@ -1,0 +1,120 @@
+library(data.table)
+library(ggplot2)
+library(dplyr)
+
+plot_binding_interface_residue_median_ddG_heatmap <- function(
+    ddG_file,
+    binding_sites,
+    position_labels,
+    title = "Binding Interface Residues - Median ΔΔGb"
+) {
+  # Read data
+  ddG <- fread(ddG_file)
+  ddG <- ddG[, Pos_real := Pos + 1]
+  
+  # Calculate median values
+  median_values <- ddG %>%
+    filter(Pos_real %in% binding_sites) %>%
+    group_by(Pos_real) %>%
+    summarise(median_ddG = median(`mean_kcal/mol`, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(
+      residue_label = factor(position_labels[as.character(Pos_real)], 
+                             levels = position_labels),
+    ) %>%
+    arrange(residue_label)
+  
+  # Plot heatmap
+  p <- ggplot(median_values, aes(x = 1, y = residue_label, fill = median_ddG)) +
+    geom_tile(color = "white", linewidth = 0.1) +
+    scale_fill_gradient2(
+      low = "#1B38A6",
+      mid = "gray",
+      high = "#F4270C",
+      midpoint = 0,
+      name = expression(Delta * Delta * "Gb (kcal/mol)")
+    ) +
+    labs(
+      title = title,
+      x = NULL,
+      y = "Residue"
+    ) +
+    theme_minimal() +
+    theme(
+      text = element_text(size = 8),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5, size = 8),
+      axis.text.y = element_text(size = 8),
+      axis.title.y = element_text(size = 8),
+      legend.position = "right",
+      panel.border = element_rect(color = "gray90", fill = NA, linewidth = 0.8),
+      legend.title = element_text(size = 8),
+      legend.text = element_text(size = 8)
+    ) +
+    scale_y_discrete(limits = rev(levels(median_values$residue_label))) +
+    coord_fixed(ratio = 0.4)
+  
+  return(p)
+}
+
+
+### Call function
+## K13
+
+ddG_file <- "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt"
+
+# Define binding interface residues and corresponding labels
+binding_interface_residues <- c(88, 91, 87, 129, 90, 133, 94, 137, 95, 68, 136, 99, 102, 101, 107, 98)
+position_labels <- c(
+  "88" = "K88", "91" = "E91", "87" = "T87", "129" = "Q129",
+  "90" = "F90", "133" = "L133", "94" = "H94", "137" = "Y137",
+  "95" = "H95", "68" = "R68", "136" = "S136", "99" = "Q99",
+  "102" = "R102", "101" = "K101", "107" = "E107", "98" = "E98"
+)
+
+# Call function
+p <- plot_binding_interface_residue_median_ddG_heatmap(
+  ddG_file = ddG_file,
+  binding_sites = binding_interface_residues,
+  position_labels = position_labels,
+  title = "K13 Binding Interface Residues - Median ΔΔGb"
+)
+
+# Display plot
+print(p)
+
+# Save plot
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure2/20251018/K13_BI_residues_median_ddG_heatmap.pdf", p , device = cairo_pdf, height = 6, width = 3)
+
+
+
+
+
+## K19
+
+ddG_file <- "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt"
+
+# Define binding interface residues and corresponding labels
+binding_interface_residues <- c(88, 91, 87, 129, 90, 133, 94, 137, 95, 68, 136, 99, 102, 101, 107, 98)
+position_labels <- c(
+  "88" = "K88", "91" = "E91", "87" = "T87", "129" = "Q129",
+  "90" = "F90", "133" = "L133", "94" = "H94", "137" = "Y137",
+  "95" = "H95", "68" = "R68", "136" = "S136", "99" = "Q99",
+  "102" = "R102", "101" = "K101", "107" = "E107", "98" = "E98"
+)
+
+# Call function
+p <- plot_binding_interface_residue_median_ddG_heatmap(
+  ddG_file = ddG_file,
+  binding_sites = binding_interface_residues,
+  position_labels = position_labels,
+  title = "K19 Binding Interface Residues - Median ΔΔGb"
+)
+
+# Display plot
+print(p)
+
+# Save plot
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure2/20251018/K19_BI_residues_median_ddG_heatmap.pdf", p , device = cairo_pdf, height = 6, width = 3)
