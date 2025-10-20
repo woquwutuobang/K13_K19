@@ -16,7 +16,7 @@ library(krasddpcams)
 #' @param wt_aa_input Wild-type amino acid sequence
 #' @return Integrated data table with normalized fitness values
 
-integrate_fitness_data_5blocks <- function(prediction = prediction, 
+krasddpcams__merge_ddGf_fitness_5blocks <- function(prediction = prediction, 
                                            folding_ddG = folding_ddG, 
                                            block1_dimsum_df = block1_dimsum_df, 
                                            block2_dimsum_df = block2_dimsum_df, 
@@ -169,6 +169,50 @@ integrate_fitness_data_5blocks <- function(prediction = prediction,
   return(pre_nor)
 }
 
+
+
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock <- function(pre_nor = pre_nor, phenotypen = phenotypen, rotate_x_axis = TRUE) 
+{
+  pre_nor
+  lm_mochi <- lm(pre_nor_fitness ~ ob_nor_fitness, pre_nor[phenotype == phenotypen, ])
+  
+  p <- ggplot2::ggplot() + 
+    ggplot2::stat_binhex(data = pre_nor[phenotype == phenotypen, ], 
+                         ggplot2::aes(x = ob_nor_fitness, y = pre_nor_fitness), 
+                         bins = 50, size = 0, color = "black") + 
+    ggplot2::scale_fill_gradient(low = "white", 
+                                 high = "black", 
+                                 trans = "log10", 
+                                 guide = ggplot2::guide_colorbar(barwidth = 0.5, 
+                                                                 barheight = 1.5)) + 
+    ggplot2::geom_hline(yintercept = 0) + 
+    ggplot2::geom_vline(xintercept = 0) + 
+    ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+    ggplot2::annotate("text", 
+                      x = -0.8, y = 0.3, 
+                      label = paste0("R² = ", round(summary(lm_mochi)$r.squared, 2)), 
+                      size = 8 * 0.35) + 
+    ggplot2::theme_classic() + 
+    ggplot2::xlab("Observed fitness") + 
+    ggplot2::ylab("Predicted fitness") + 
+    ggplot2::theme(
+      text = ggplot2::element_text(size = 8), 
+      axis.text = ggplot2::element_text(size = 8), 
+      legend.text = ggplot2::element_text(size = 8), 
+      legend.key.size = ggplot2::unit(1, "cm"), 
+      plot.title = ggplot2::element_text(size = 8)
+    ) + 
+    ggplot2::coord_fixed()
+  
+  # Determines whether to rotate the X axis according to the parameters
+  if (rotate_x_axis) {
+    p <- p + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1))
+  }
+  
+  return(p)
+}
+
+
 # =====================
 # Model Evaluation Plots
 # =====================
@@ -177,29 +221,29 @@ integrate_fitness_data_5blocks <- function(prediction = prediction,
 wt_aa <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
 # Integrate abundance fitness data
-abundance_fitness_data <- integrate_fitness_data_5blocks(
-  prediction = "path/to/predicted_phenotypes_all.txt",
-  folding_ddG = "path/to/weights_Folding.txt",
-  block1_dimsum_df = "path/to/abundance_block1.RData",
-  block2_dimsum_df = "path/to/abundance_block2.RData",
-  block3_dimsum_df = "path/to/abundance_block3.RData",
-  block4_dimsum_df = "path/to/abundance_block4.RData",
-  block5_dimsum_df = "path/to/abundance_block5.RData",
+abundance_fitness_data <- krasddpcams__merge_ddGf_fitness_5blocks(
+  prediction="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/predictions/predicted_phenotypes_all.txt",
+  folding_ddG="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Folding.txt",
+  block1_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_1_fitness_replicates_fullseq.RData",
+  block2_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_2_fitness_replicates_fullseq.RData",
+  block3_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block4_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_3_fitness_replicates_fullseq.RData",
+  block5_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   wt_aa_input = wt_aa
 )
 
 # Generate evaluation plots for each block
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 1)
-ggsave("path/to/abundance_block1_evaluation.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 1, rotate_x_axis = TRUE)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/abundance_block1_evaluation_fitness_pre_vs_ob.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 2)
-ggsave("path/to/abundance_block2_evaluation.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 2, rotate_x_axis = TRUE)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/abundance_block2_1_evaluation_fitness_pre_vs_ob.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 3)
-ggsave("path/to/abundance_block3_evaluation.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 3, rotate_x_axis = TRUE)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/abundance_block2_2_evaluation_fitness_pre_vs_ob.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 4)
-ggsave("path/to/abundance_block4_evaluation.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 4, rotate_x_axis = TRUE)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/abundance_block3_1_evaluation_fitness_pre_vs_ob.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 5)
-ggsave("path/to/abundance_block5_evaluation.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = abundance_fitness_data, phenotypen = 5, rotate_x_axis = TRUE)
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/abundance_block3_2_evaluation_fitness_pre_vs_ob.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
