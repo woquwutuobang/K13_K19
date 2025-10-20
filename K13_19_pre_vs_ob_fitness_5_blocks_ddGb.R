@@ -154,86 +154,138 @@ krasddpcams__merge_ddGb_ob_pre_fitness_5blocks <- function(
   return(pre_nor)
 }
 
+######################################
+
+####################################
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock <- function(pre_nor = pre_nor, phenotypen = phenotypen, rotate_x_axis = TRUE) 
+{
+  pre_nor
+  lm_mochi <- lm(pre_nor_fitness ~ ob_nor_fitness, pre_nor[phenotype == phenotypen, ])
+  
+  
+  p <- ggplot2::ggplot() + 
+    ggplot2::stat_binhex(data = pre_nor[phenotype == phenotypen, ], 
+                         ggplot2::aes(x = ob_nor_fitness, y = pre_nor_fitness), 
+                         bins = 50, size = 0, color = "black") + 
+    ggplot2::scale_fill_gradient(low = "white", 
+                                 high = "black", 
+                                 trans = "log10", 
+                                 guide = ggplot2::guide_colorbar(barwidth = 0.5, 
+                                                                 barheight = 1.5)) + 
+    ggplot2::geom_hline(yintercept = 0) + 
+    ggplot2::geom_vline(xintercept = 0) + 
+    ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+    ggplot2::annotate("text", 
+                      x = -0.8, y = 0.3, 
+                      label = paste0("R² = ", round(summary(lm_mochi)$r.squared, 2)), 
+                      size = 8 * 0.35) + 
+    ggplot2::theme_classic() + 
+    ggplot2::xlab("Observed fitness") + 
+    ggplot2::ylab("Predicted fitness") + 
+    ggplot2::theme(
+      text = ggplot2::element_text(size = 8), 
+      axis.text = ggplot2::element_text(size = 8), 
+      legend.text = ggplot2::element_text(size = 8), 
+      legend.key.size = ggplot2::unit(1, "cm"), 
+      plot.title = ggplot2::element_text(size = 8)
+    ) + 
+    ggplot2::coord_fixed()
+  
+  # Determines whether to rotate the X axis according to the parameters
+  if (rotate_x_axis) {
+    p <- p + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1))
+  }
+  
+  return(p)
+}
+
+
+
 # Wild-type KRAS sequence
 wt_aa <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
 # RAF1: Merge predicted and observed fitness data
 RAF1_pre_ob_fitness <- krasddpcams__merge_ddGb_ob_pre_fitness_5blocks(
-  prediction = "path/to/predicted_phenotypes_all.txt",
-  block1_dimsum_df = "path/to/RAF_block1_fitness.RData",
-  block2_dimsum_df = "path/to/RAF_block2_fitness.RData",
-  block3_dimsum_df = "path/to/RAF_block2_2_fitness.RData", 
-  block4_dimsum_df = "path/to/RAF_block3_fitness.RData",
-  block5_dimsum_df = "path/to/RAF_block3_2_fitness.RData",
+  prediction="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/predictions/predicted_phenotypes_all.txt",
+  block1_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
+  block2_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_2_fitness_replicates_fullseq.RData",
+  block3_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block4_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_3_fitness_replicates_fullseq.RData",
+  block5_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   assay_sele = "RAF1",
   wt_aa_input = wt_aa)
 
 # Generate and save RAF1 fitness comparison plots for each block
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 31)
-ggplot2::ggsave("path/to/RAF1_fitness_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 31, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/RAF1_fitness_pre_vs_ob_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 32)
-ggplot2::ggsave("path/to/RAF1_fitness_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 32, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/RAF1_fitness_pre_vs_ob_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 33)
-ggplot2::ggsave("path/to/RAF1_fitness_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 33, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/RAF1_fitness_pre_vs_ob_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 34)
-ggplot2::ggsave("path/to/RAF1_fitness_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 34, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/RAF1_fitness_pre_vs_ob_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 35)
-ggplot2::ggsave("path/to/RAF1_fitness_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = RAF1_pre_ob_fitness, phenotypen = 35, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/RAF1_fitness_pre_vs_ob_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+
+
 
 # K13: Merge predicted and observed fitness data  
 K13_pre_ob_fitness <- krasddpcams__merge_ddGb_ob_pre_fitness_5blocks(
-  prediction = "path/to/predicted_phenotypes_all.txt",
-  block1_dimsum_df = "path/to/K13_block1_fitness.RData",
-  block2_dimsum_df = "path/to/K13_block2_fitness.RData",
-  block3_dimsum_df = "path/to/K13_block2_2_fitness.RData",
-  block4_dimsum_df = "path/to/K13_block3_fitness.RData", 
-  block5_dimsum_df = "path/to/K13_block3_2_fitness.RData",
+  prediction="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/predictions/predicted_phenotypes_all.txt",
+  block1_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block1_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block2_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block3_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block2_Q20_rbg_filter2_20250829_fitness_replicates_2.RData",
+  block4_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block5_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block3_Q20_rbg_filter2_20250829_fitness_replicates_2.RData",
   assay_sele = "K13",
   wt_aa_input = wt_aa)
 
 # Generate and save K13 fitness comparison plots for each block
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 6)
-ggplot2::ggsave("path/to/K13_fitness_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 6, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K13_fitness_pre_vs_ob_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 7)
-ggplot2::ggsave("path/to/K13_fitness_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 7, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K13_fitness_pre_vs_ob_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 8)
-ggplot2::ggsave("path/to/K13_fitness_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 8, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K13_fitness_pre_vs_ob_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 9)
-ggplot2::ggsave("path/to/K13_fitness_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 9, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K13_fitness_pre_vs_ob_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 10)
-ggplot2::ggsave("path/to/K13_fitness_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K13_pre_ob_fitness, phenotypen = 10, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K13_fitness_pre_vs_ob_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+
+
 
 # K19: Merge predicted and observed fitness data
 K19_pre_ob_fitness <- krasddpcams__merge_ddGb_ob_pre_fitness_5blocks(
-  prediction = "path/to/predicted_phenotypes_all.txt", 
-  block1_dimsum_df = "path/to/K19_block1_fitness.RData",
-  block2_dimsum_df = "path/to/K19_block2_fitness.RData",
-  block3_dimsum_df = "path/to/K19_block2_2_fitness.RData",
-  block4_dimsum_df = "path/to/K19_block3_fitness.RData",
-  block5_dimsum_df = "path/to/K19_block3_2_fitness.RData",
+  prediction="C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/predictions/predicted_phenotypes_all.txt",
+  block1_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block1_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block2_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block2_Q20_rbg_filter3_20250830_fitness_replicates.RData",
+  block3_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block2_Q20_rbg_filter3_20250830_fitness_replicates_2.RData",
+  block4_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block5_dimsum_df="C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block3_Q20_rbg_filter2_20250829_fitness_replicates_2.RData",
   assay_sele = "K19",
   wt_aa_input = wt_aa)
 
 # Generate and save K19 fitness comparison plots for each block
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 11)
-ggplot2::ggsave("path/to/K19_fitness_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 11, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K19_fitness_pre_vs_ob_block1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 12)
-ggplot2::ggsave("path/to/K19_fitness_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 12, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K19_fitness_pre_vs_ob_block2_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 13)
-ggplot2::ggsave("path/to/K19_fitness_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 13, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K19_fitness_pre_vs_ob_block2_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 14)
-ggplot2::ggsave("path/to/K19_fitness_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 14, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K19_fitness_pre_vs_ob_block3_1.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
 
-krasddpcams__plot2d_ddGf_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 15)
-ggplot2::ggsave("path/to/K19_fitness_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+krasddpcams__plot2d_ddGb_ob_pre_fitness_perblock(pre_nor = K19_pre_ob_fitness, phenotypen = 15, rotate_x_axis = TRUE)
+ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s2/20251019/K19_fitness_pre_vs_ob_block3_2.pdf", device = cairo_pdf, height = 45, width = 60, units = "mm")
+
