@@ -3,6 +3,32 @@ library(ggplot2)
 library(cowplot)
 
 # ========= 1. Compute Distance Matrix from PDB =========
+
+#' Compute Distance Matrix from PDB Structure
+#'
+#' This function reads a PDB file and computes a pairwise distance matrix
+#' between specified atoms (typically C-alpha atoms) for a given chain.
+#' The distance matrix is used for spatial clustering analysis of protein residues.
+#'
+#' @param pdb_file Character string. Path to the PDB structure file.
+#' @param chain Character string. Chain identifier to analyze (default: "A").
+#' @param atom_type Character string. Type of atoms to use for distance calculation 
+#'   (default: "CA" for C-alpha atoms).
+#'
+#' @return A symmetric distance matrix with residue numbers as row and column names.
+#'   Distances are in Angstroms (Å).
+#'
+#' @examples
+#' # Compute distance matrix for chain A using C-alpha atoms
+#' dist_matrix <- compute_dist_matrix("protein.pdb", chain = "A", atom_type = "CA")
+#' 
+#' # Compute distance matrix for chain B using C-beta atoms
+#' dist_matrix_b <- compute_dist_matrix("protein.pdb", chain = "B", atom_type = "CB")
+#' 
+#' # View matrix dimensions and first few residues
+#' dim(dist_matrix)
+#' head(rownames(dist_matrix))
+
 compute_dist_matrix <- function(pdb_file, chain = "A", atom_type = "CA") {
   pdb <- read.pdb(pdb_file)
   inds <- atom.select(pdb, chain = chain, elety = atom_type)
@@ -21,6 +47,47 @@ compute_dist_matrix <- function(pdb_file, chain = "A", atom_type = "CA") {
 }
 
 # ========= 2. Calculate Four Spatial Clustering Metrics =========
+
+#' Calculate Spatial Clustering Metrics for Hotspot Residues
+#'
+#' This function computes four spatial clustering metrics by comparing actual
+#' hotspot residue distances with random distributions. It calculates pairwise
+#' distances, median distances, per-site minimum distances, and median per-site
+#' minimum distances for hotspot residues versus random residue sets.
+#'
+#' @param hotspots Numeric vector. Residue numbers of hotspot residues to analyze.
+#' @param dist_matrix Matrix. Distance matrix computed from PDB structure with
+#'   residue numbers as row/column names.
+#' @param n_sim Integer. Number of random simulations to perform for comparison
+#'   (default: 1000).
+#'
+#' @return A list containing:
+#'   \item{actual_distances}{Numeric vector of pairwise distances between hotspot residues}
+#'   \item{actual_median}{Median of pairwise distances between hotspot residues}
+#'   \item{per_site_min}{Numeric vector of minimum distances for each hotspot residue}
+#'   \item{median_min}{Median of per-site minimum distances}
+#'   \item{sim_dists}{Numeric vector of all pairwise distances from random simulations}
+#'   \item{sim_medians}{Numeric vector of median distances from each random simulation}
+#'   \item{sim_permin}{Numeric vector of all per-site minimum distances from random simulations}
+#'   \item{sim_median_mins}{Numeric vector of median per-site minimum distances from each random simulation}
+#'
+#' @examples
+#' # Load distance matrix
+#' dist_matrix <- compute_dist_matrix("protein.pdb")
+#' 
+#' # Define hotspot residues
+#' hotspots <- c(15, 16, 145, 10, 53, 77, 89, 151)
+#' 
+#' # Calculate clustering metrics
+#' clustering_data <- compute_distributions(hotspots, dist_matrix, n_sim = 1000)
+#' 
+#' # Access results
+#' actual_median <- clustering_data$actual_median
+#' random_medians <- clustering_data$sim_medians
+#' 
+#' # Compare actual vs random
+#' p_value <- sum(random_medians <= actual_median) / length(random_medians)
+
 compute_distributions <- function(hotspots, dist_matrix, n_sim = 1000) {
   hotspot_ids <- as.character(intersect(hotspots, as.numeric(rownames(dist_matrix))))
   if (length(hotspot_ids) < 2) {
@@ -63,8 +130,42 @@ compute_distributions <- function(hotspots, dist_matrix, n_sim = 1000) {
   ))
 }
 
-# ========= 3. Plot Connectivity Analysis Results =========
-plot_connectivity <- function(assay, dist_data, outdir = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s6/20251011/allosteric_clustering_results") {
+
+# ========= 3. Plot Spatial Clustering Analysis Results =========
+
+
+#' Plot Spatial Clustering Analysis Results
+#'
+#' This function creates a comprehensive visualization of spatial clustering analysis
+#' results, generating four plots: pairwise distance distributions, median pairwise
+#' distances, per-site minimum distances, and median per-site minimum distances.
+#' Each plot compares actual hotspot distributions with random distributions.
+#'
+#' @param assay Character string. Name of the binding partner/assay being analyzed.
+#' @param dist_data List. Output from \code{compute_distributions()} containing
+#'   actual and simulated distance data.
+#' @param outdir Character string. Output directory for saving plots (default:
+#'   "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s6/20251011/allosteric_clustering_results").
+#'
+#' @return Invisibly returns the combined plot object. Saves a PDF file with
+#'   four subplots showing spatial clustering analysis results.
+#'
+#' @examples
+#' # Calculate clustering data first
+#' dist_matrix <- compute_dist_matrix("protein.pdb")
+#' hotspots <- c(15, 16, 145, 10, 53, 77, 89, 151)
+#' clustering_data <- compute_distributions(hotspots, dist_matrix)
+#' 
+#' # Create plots
+#' plot_connectivity("K13", clustering_data)
+#' 
+#' # Custom output directory
+#' plot_connectivity("K19", clustering_data, 
+#'                  outdir = "C:/path/to/custom/output")
+#' 
+#' # The function saves a PDF file named "spatial_clustering_[assay].pdf"
+
+plot_spatial_clustering_analysis_results <- function(assay, dist_data, outdir = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s6/20251022/allosteric_clustering_results") {
   if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
   
   df_f <- data.frame(
@@ -83,8 +184,8 @@ plot_connectivity <- function(assay, dist_data, outdir = "C:/Users/36146/OneDriv
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
       axis.text.y = element_text(size = 8),
-      axis.title = element_text(size = 8, face = "bold"),
-      plot.title = element_text(size = 8, face = "bold"),
+      axis.title = element_text(size = 8),
+      plot.title = element_text(size = 8),
       legend.text = element_text(size = 8),
       legend.title = element_text(size = 8),
       legend.position = c(0.8, 0.8)
@@ -129,10 +230,58 @@ plot_connectivity <- function(assay, dist_data, outdir = "C:/Users/36146/OneDriv
   p_all <- plot_grid(p_f, p_g, p_h, p_i, nrow = 1)
   outfile <- file.path(outdir, paste0("spatial_clustering_", assay, ".pdf"))
   ggsave(outfile, p_all, width = 16, height = 4)
-  message("✅ Saved: ", outfile)
+  message("Saved:", outfile)
 }
 
 # ========= 4. Main Analysis Pipeline =========
+
+#' Run Complete Allosteric Clustering Analysis
+#'
+#' This is the main function that orchestrates the complete allosteric clustering
+#' analysis pipeline. It computes distance matrices from PDB structures and
+#' analyzes spatial clustering patterns for multiple binding partners/assays.
+#' For each assay, it calculates clustering metrics and generates visualization plots.
+#'
+#' @param hotspot_list Named list. Each element contains a numeric vector of
+#'   hotspot residue numbers for a specific binding partner. Names should be
+#'   assay/binding partner identifiers.
+#' @param pdb_file Character string. Path to the PDB structure file.
+#' @param chain Character string. Chain identifier to analyze (default: "A").
+#' @param atom_type Character string. Type of atoms to use for distance calculation
+#'   (default: "CA" for C-alpha atoms).
+#' @param n_sim Integer. Number of random simulations to perform for comparison
+#'   (default: 1000).
+#'
+#' @return Invisibly returns NULL. The function processes each assay in the
+#'   hotspot_list, computes clustering metrics, and saves visualization plots
+#'   to the output directory.
+#'
+#' @examples
+#' # Define hotspot residues for different binding partners
+#' hotspot_list <- list(
+#'   K13 = c(15, 16, 145, 10, 53, 77, 89, 151),
+#'   K19 = c(15, 16, 145, 10, 77, 89, 134, 151),
+#'   RAF1 = c(15, 16, 17, 28, 32, 35, 57, 60, 145, 146, 10, 54, 58, 59, 144, 163)
+#' )
+#' 
+#' # Run analysis
+#' run_allosteric_clustering_analysis(
+#'   hotspot_list = hotspot_list,
+#'   pdb_file = "protein.pdb",
+#'   chain = "A",
+#'   atom_type = "CA",
+#'   n_sim = 1000
+#' )
+#' 
+#' # Analyze specific chain with different atom types
+#' run_allosteric_clustering_analysis(
+#'   hotspot_list = hotspot_list,
+#'   pdb_file = "protein.pdb",
+#'   chain = "B",
+#'   atom_type = "CB",
+#'   n_sim = 500
+#' )
+
 run_allosteric_clustering_analysis <- function(hotspot_list, pdb_file, chain = "A", atom_type = "CA", n_sim = 1000) {
   dist_matrix <- compute_dist_matrix(pdb_file, chain = chain, atom_type = atom_type)
   cat("Distance matrix dimensions:", dim(dist_matrix), "\n")
@@ -145,12 +294,13 @@ run_allosteric_clustering_analysis <- function(hotspot_list, pdb_file, chain = "
     
     tryCatch({
       dist_data <- compute_distributions(hotspots, dist_matrix, n_sim = n_sim)
-      plot_connectivity(assay, dist_data)
+      plot_spatial_clustering_analysis_results(assay, dist_data)
     }, error = function(e) {
-      message("❌ Error processing ", assay, ": ", e$message)
+      message("ERROR:Error processing ", assay, ": ", e$message)
     })
   }
 }
+
 
 
 # ========= 5. Usage Example =========
@@ -177,7 +327,6 @@ run_allosteric_clustering_analysis(
   atom_type = "CA", 
   n_sim = 1000
 )
-
 
 
 
