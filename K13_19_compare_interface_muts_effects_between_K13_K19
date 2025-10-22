@@ -5,140 +5,355 @@ library(tidyr)
 library(dplyr)
 library(ggrepel)
 
-# ===== Read data =====
-ddG1 <- krasddpcams__read_ddG(ddG = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt", assay_sele = "K13")
-ddG2 <- krasddpcams__read_ddG(ddG = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt", assay_sele = "K19")
-
-K13_binding_interface_site <- c(98, 107, 101, 102, 99, 136, 68, 95, 137, 94, 133, 90, 129, 87, 91, 88)
-K19_binding_interface_site <- c(98, 107, 101, 102, 99, 136, 68, 95, 137, 94, 133, 90, 129, 87, 91, 88)
-
-ddG1_K13 <- ddG1[Pos %in% K13_binding_interface_site, c(1:3, 23:27)]
-ddG2_K19 <- ddG2[Pos %in% K19_binding_interface_site, c(1:3, 23:27)]
-
-ddG1_dc <- ddG1_K13 %>%
-  spread(key = assay, value = `mean_kcal/mol`)
-
-ddG2_dc <- ddG2_K19 %>%
-  spread(key = assay, value = `mean_kcal/mol`)
-
-ddG_dc <- merge(ddG1_dc, ddG2_dc, by = c("mt", "Pos_real"), all = TRUE)
-
-# ===== Calculate correlation =====
-correlation_coefficient <- cor(ddG_dc$K13, ddG_dc$K19, use = "complete.obs")
-
-# ===== Identify points deviating from correlation =====
-# 1. Linear fitting
-fit <- lm(K19 ~ K13, data = ddG_dc)
-
-# 2. Calculate absolute residuals - directly measure deviation from linear relationship
-ddG_dc$abs_residual <- abs(resid(fit))
-
-# 3. Label top deviating points (e.g., top 10)
-num_outliers <- 10
-ddG_dc <- ddG_dc %>%
-  mutate(
-    outlier_rank = rank(-abs_residual, ties.method = "first"),
-    is_outlier = outlier_rank <= num_outliers
-  )
-
-# Get outliers to label
-outliers_to_label <- ddG_dc %>%
-  filter(is_outlier == TRUE) %>%
-  arrange(desc(abs_residual))
-
-# ===== Plot (with error bars) =====
-ggplot(ddG_dc, aes(x = K13, y = K19)) +
-  # Add regression line
-  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.8, alpha = 0.5) +
+#' Compare Binding Interface Mutation Effects Between Two Assays
+#'
+#' This function compares the effects of binding interface mutations between two different assays
+#' (e.g., K13 vs K19 binding) by analyzing ΔΔG values. It identifies outliers that deviate
+#' significantly from the linear correlation and provides detailed statistical analysis including
+#' error bars and outlier classification based on measurement uncertainty.
+#'
+#' @param ddG_file1 character. Path to the text file containing ΔΔG data for the first assay.
+#'   Should be a tab-delimited file with columns including mutation information and ΔΔG values
+#'   that can be read by \code{krasddpcams__read_ddG()}.
+#' @param ddG_file2 character. Path to the text file containing ΔΔG data for the second assay.
+#'   Should be a tab-delimited file with columns including mutation information and ΔΔG values
+#'   that can be read by \code{krasddpcams__read_ddG()}.
+#' @param assay1_name character. Name of the first assay for data processing and labeling.
+#'   Used to select specific assay data from the loaded dataset. Default: "K13".
+#' @param assay2_name character. Name of the second assay for data processing and labeling.
+#'   Used to select specific assay data from the loaded dataset. Default: "K19".
+#' @param binding_interface_sites1 numeric vector. Amino acid positions that define the binding
+#'   interface for the first assay. Only mutations at these positions will be analyzed.
+#'   Default: c(98, 107, 101, 102, 99, 136, 68, 95, 137, 94, 133, 90, 129, 87, 91, 88).
+#' @param binding_interface_sites2 numeric vector. Amino acid positions that define the binding
+#'   interface for the second assay. Only mutations at these positions will be analyzed.
+#'   Default: same as binding_interface_sites1.
+#' @param num_outliers numeric. Number of top deviating points to highlight and label in the plot.
+#'   Points are ranked by absolute residual from the linear fit. Default: 10.
+#' @param output_file character, optional. Path where the output plot should be saved as PDF.
+#'   If NULL (default), the plot will only be displayed without saving. Should include
+#'   the full path and filename with .pdf extension.
+#' @param plot_title character. Main title for the plot. Default: "Correlation Analysis with Error Bars - Most Deviating Points".
+#' @param x_label character. Label for the x-axis. Default: "ΔΔG for K13 Binding Interface Mutations (kcal/mol)".
+#' @param y_label character. Label for the y-axis. Default: "ΔΔG for K19 Binding Interface Mutations (kcal/mol)".
+#' @param point_color character. Color for regular data points in hex format. Default: "#75C2F6".
+#' @param outlier_color character. Color for outlier points and labels in hex format. Default: "#FF6A56".
+#' @param point_alpha numeric. Transparency level for regular data points. Range: 0 (transparent) to 1 (opaque).
+#'   Default: 0.8.
+#' @param outlier_alpha numeric. Transparency level for outlier points. Range: 0 (transparent) to 1 (opaque).
+#'   Default: 0.6.
+#' @param point_size numeric. Size of regular data points. Default: 2.
+#' @param outlier_size numeric. Size of outlier points. Default: 2.5.
+#' @param error_bar_width numeric. Width of error bars for regular points. Default: 0.05.
+#' @param outlier_error_bar_width numeric. Width of error bars for outlier points. Default: 0.08.
+#' @param label_size numeric. Size of outlier labels. Default: 2.5.
+#' @param plot_width numeric. Width of the output plot in inches. Default: 6.
+#' @param plot_height numeric. Height of the output plot in inches. Default: 6.
+#' @param dpi numeric. Resolution of the output plot in dots per inch. Default: 300.
+#' @param print_summary logical. Whether to print detailed outlier analysis summary to console.
+#'   Default: TRUE.
+#'
+#' @return A list containing:
+#'   \item{data}{data.frame. Merged ΔΔG data from both assays containing columns:
+#'     \itemize{
+#'       \item mt: Mutation identifier (e.g., "A12V")
+#'       \item Pos_real: Amino acid position in the protein sequence
+#'       \item K13/K19: Mean ΔΔG values for each assay
+#'       \item std_kcal/mol.x/y: Standard deviation of ΔΔG values
+#'       \item abs_residual: Absolute residual from linear fit
+#'       \item outlier_rank: Ranking of points by deviation magnitude
+#'       \item is_outlier: Logical indicating if point is in top deviating set
+#'     }
+#'   }
+#'   \item{outliers}{data.frame. Detailed information about identified outliers containing:
+#'     \itemize{
+#'       \item mt: Mutation identifier
+#'       \item Pos_real: Amino acid position
+#'       \item K13/K19: Mean ΔΔG values
+#'       \item std_kcal/mol.x/y: Standard deviations
+#'       \item abs_residual: Absolute residual from linear fit
+#'       \item K13_error_range/K19_error_range: ±1 SD error ranges
+#'       \item likely_noise: Logical indicating if deviation likely due to measurement noise
+#'     }
+#'   }
+#'   \item{correlation}{numeric. Pearson correlation coefficient between the two assays}
+#'   \item{fit}{lm object. Linear model fit object for further analysis}
+#'   \item{plot}{ggplot object. The generated correlation plot with error bars and outlier labels}
+#'   \item{summary}{list. Summary statistics including:
+#'     \itemize{
+#'       \item total_points: Total number of data points analyzed
+#'       \item outliers_count: Number of identified outliers
+#'       \item noise_outliers: Number of outliers likely due to measurement noise
+#'       \item biological_outliers: Number of outliers representing true biological deviation
+#'     }
+#'   }
+#'
+#' @details The function performs the following analysis steps:
+#' \enumerate{
+#'   \item Loads ΔΔG data from both assay files using \code{krasddpcams__read_ddG()}
+#'   \item Filters data to include only binding interface positions
+#'   \item Merges data from both assays based on mutation and position
+#'   \item Calculates Pearson correlation coefficient
+#'   \item Performs linear regression to identify deviating points
+#'   \item Ranks points by absolute residual from linear fit
+#'   \item Classifies outliers as likely noise or biological deviation based on error ranges
+#'   \item Creates comprehensive visualization with error bars and outlier labels
+#'   \item Optionally saves plot as high-resolution PDF
+#' }
+#'
+#' The function uses error bars to distinguish between measurement uncertainty and true biological
+#' outliers. Points with large residuals that exceed the combined measurement error are considered
+#' true biological outliers.
+#'
+#' @examples
+#' # Basic usage comparing K13 and K19 binding interfaces
+#' result <- compare_interface_mutations_effects(
+#'   ddG_file1 = "path/to/weights_Binding_K13.txt",
+#'   ddG_file2 = "path/to/weights_Binding_K19.txt",
+#'   assay1_name = "K13",
+#'   assay2_name = "K19",
+#'   output_file = "K13_K19_comparison.pdf"
+#' )
+#' 
+#' # Access correlation coefficient
+#' correlation <- result$correlation
+#' print(paste("Correlation coefficient:", round(correlation, 3)))
+#' 
+#' # Access outlier information
+#' outliers <- result$outliers
+#' print(paste("Number of outliers:", nrow(outliers)))
+#' 
+#' # Custom interface sites and parameters
+#' custom_sites <- c(98, 107, 101, 102, 99, 136, 68, 95)
+#' result_custom <- compare_interface_mutations_effects(
+#'   ddG_file1 = "path/to/assay1_data.txt",
+#'   ddG_file2 = "path/to/assay2_data.txt",
+#'   assay1_name = "Assay1",
+#'   assay2_name = "Assay2",
+#'   binding_interface_sites1 = custom_sites,
+#'   binding_interface_sites2 = custom_sites,
+#'   num_outliers = 15,
+#'   point_color = "#2E8B57",
+#'   outlier_color = "#DC143C",
+#'   plot_title = "Custom Binding Interface Analysis",
+#'   x_label = "ΔΔG for Assay1 (kcal/mol)",
+#'   y_label = "ΔΔG for Assay2 (kcal/mol)"
+#' )
+#' 
+#' # Access summary statistics
+#' summary_stats <- result_custom$summary
+#' print(paste("Biological outliers:", summary_stats$biological_outliers))
+#' print(paste("Noise outliers:", summary_stats$noise_outliers))
+#'
+#' @seealso \code{\link{krasddpcams__read_ddG}}, \code{\link{cor}}, \code{\link{lm}}
+#' @import data.table krasddpcams ggplot2 tidyr dplyr ggrepel
+#' @export
+compare_interface_mutations_effects <- function(
+    ddG_file1,
+    ddG_file2,
+    assay1_name = "K13",
+    assay2_name = "K19",
+    binding_interface_sites1 = c(98, 107, 101, 102, 99, 136, 68, 95, 137, 94, 133, 90, 129, 87, 91, 88),
+    binding_interface_sites2 = c(98, 107, 101, 102, 99, 136, 68, 95, 137, 94, 133, 90, 129, 87, 91, 88),
+    num_outliers = 10,
+    output_file = NULL,
+    plot_title = "Correlation Analysis with Error Bars - Most Deviating Points",
+    x_label = "ΔΔG for K13 Binding Interface Mutations (kcal/mol)",
+    y_label = "ΔΔG for K19 Binding Interface Mutations (kcal/mol)",
+    point_color = "#75C2F6",
+    outlier_color = "#FF6A56",
+    point_alpha = 0.8,
+    outlier_alpha = 0.6,
+    point_size = 2,
+    outlier_size = 2.5,
+    error_bar_width = 0.05,
+    outlier_error_bar_width = 0.08,
+    label_size = 2.5,
+    plot_width = 6,
+    plot_height = 6,
+    dpi = 300,
+    print_summary = TRUE
+) {
   
-  # Add error bars for all points (light gray, semi-transparent)
-  geom_errorbar(aes(ymin = K19 - `std_kcal/mol.y`, ymax = K19 + `std_kcal/mol.y`),
-                width = 0.05, color = "grey70", alpha = 0.3) +
-  geom_errorbarh(aes(xmin = K13 - `std_kcal/mol.x`, xmax = K13 + `std_kcal/mol.x`),
-                 height = 0.05, color = "grey70", alpha = 0.3) +
+  # ===== Read data =====
+  cat("Loading data from files...\n")
+  ddG1 <- krasddpcams__read_ddG(ddG = ddG_file1, assay_sele = assay1_name)
+  ddG2 <- krasddpcams__read_ddG(ddG = ddG_file2, assay_sele = assay2_name)
   
-  # All points
-  geom_point(color = "#75C2F6", alpha = 0.8, size = 2) +
+  # Filter to binding interface sites
+  ddG1_filtered <- ddG1[Pos %in% binding_interface_sites1, c(1:3, 23:27)]
+  ddG2_filtered <- ddG2[Pos %in% binding_interface_sites2, c(1:3, 23:27)]
   
-  # Add more prominent error bars for outliers
-  geom_errorbar(data = outliers_to_label,
-                aes(ymin = K19 - `std_kcal/mol.y`, ymax = K19 + `std_kcal/mol.y`),
-                width = 0.08, color = "#FF6A56", alpha = 0.6, size = 0.8) +
-  geom_errorbarh(data = outliers_to_label,
-                 aes(xmin = K13 - `std_kcal/mol.x`, xmax = K13 + `std_kcal/mol.x`),
-                 height = 0.08, color = "#FF6A56", alpha = 0.6, size = 0.8) +
+  # Spread data for merging
+  ddG1_dc <- ddG1_filtered %>%
+    spread(key = assay, value = `mean_kcal/mol`)
   
-  # Highlight outliers
-  geom_point(data = outliers_to_label, color = "#FF6A56", size = 2.5) +
+  ddG2_dc <- ddG2_filtered %>%
+    spread(key = assay, value = `mean_kcal/mol`)
   
-  # Label outliers (with residual information)
-  geom_text_repel(
-    data = outliers_to_label,
-    aes(label = paste0(mt, " (Δ=", round(abs_residual, 2), ")")),
-    color = "#FF6A56",
-    size = 2.5,
-    max.overlaps = Inf,
-    box.padding = 0.7,
-    point.padding = 0.3,
-    segment.color = "#FF6A56",
-    segment.alpha = 0.3
-  ) +
+  # Merge data
+  ddG_dc <- merge(ddG1_dc, ddG2_dc, by = c("mt", "Pos_real"), all = TRUE)
   
-  # Add statistical information
-  annotate("text",
-           x = min(ddG_dc$K13, na.rm = TRUE),
-           y = max(ddG_dc$K19, na.rm = TRUE),
-           label = paste(
-             "Pearson r =", round(correlation_coefficient, 3), "\n",
-             "Top", num_outliers, "deviating points labeled\n",
-             "Error bars show ±1 SD"
-           ),
-           hjust = 0, vjust = 1, size = 2.5
-  ) +
+  # ===== Calculate correlation =====
+  correlation_coefficient <- cor(ddG_dc[[assay1_name]], ddG_dc[[assay2_name]], use = "complete.obs")
   
-  labs(
-    title = "Correlation Analysis with Error Bars - Most Deviating Points",
-    x = "ΔΔG for K13 Binding Interface Mutations (kcal/mol)",
-    y = "ΔΔG for K19 Binding Interface Mutations (kcal/mol)",
-    caption = "Error bars represent standard deviation. 
+  # ===== Identify points deviating from correlation =====
+  # Linear fitting
+  fit <- lm(as.formula(paste(assay2_name, "~", assay1_name)), data = ddG_dc)
+  
+  # Calculate absolute residuals
+  ddG_dc$abs_residual <- abs(resid(fit))
+  
+  # Label top deviating points
+  ddG_dc <- ddG_dc %>%
+    mutate(
+      outlier_rank = rank(-abs_residual, ties.method = "first"),
+      is_outlier = outlier_rank <= num_outliers
+    )
+  
+  # Get outliers to label
+  outliers_to_label <- ddG_dc %>%
+    filter(is_outlier == TRUE) %>%
+    arrange(desc(abs_residual))
+  
+  # ===== Create plot =====
+  p <- ggplot(ddG_dc, aes_string(x = assay1_name, y = assay2_name)) +
+    # Add regression line
+    geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.8, alpha = 0.5) +
+    
+    # Add error bars for all points (light gray, semi-transparent)
+    geom_errorbar(aes_string(ymin = paste0(assay2_name, " - `std_kcal/mol.y`"), 
+                            ymax = paste0(assay2_name, " + `std_kcal/mol.y`")),
+                  width = error_bar_width, color = "grey70", alpha = 0.3) +
+    geom_errorbarh(aes_string(xmin = paste0(assay1_name, " - `std_kcal/mol.x`"), 
+                              xmax = paste0(assay1_name, " + `std_kcal/mol.x`")),
+                   height = error_bar_width, color = "grey70", alpha = 0.3) +
+    
+    # All points
+    geom_point(color = point_color, alpha = point_alpha, size = point_size) +
+    
+    # Add more prominent error bars for outliers
+    geom_errorbar(data = outliers_to_label,
+                  aes_string(ymin = paste0(assay2_name, " - `std_kcal/mol.y`"), 
+                            ymax = paste0(assay2_name, " + `std_kcal/mol.y`")),
+                  width = outlier_error_bar_width, color = outlier_color, alpha = outlier_alpha, size = 0.8) +
+    geom_errorbarh(data = outliers_to_label,
+                   aes_string(xmin = paste0(assay1_name, " - `std_kcal/mol.x`"), 
+                              xmax = paste0(assay1_name, " + `std_kcal/mol.x`")),
+                   height = outlier_error_bar_width, color = outlier_color, alpha = outlier_alpha, size = 0.8) +
+    
+    # Highlight outliers
+    geom_point(data = outliers_to_label, color = outlier_color, size = outlier_size) +
+    
+    # Label outliers (with residual information)
+    geom_text_repel(
+      data = outliers_to_label,
+      aes(label = paste0(mt, " (Δ=", round(abs_residual, 2), ")")),
+      color = outlier_color,
+      size = label_size,
+      max.overlaps = Inf,
+      box.padding = 0.7,
+      point.padding = 0.3,
+      segment.color = outlier_color,
+      segment.alpha = 0.3
+    ) +
+    
+    # Add statistical information
+    annotate("text",
+             x = min(ddG_dc[[assay1_name]], na.rm = TRUE),
+             y = max(ddG_dc[[assay2_name]], na.rm = TRUE),
+             label = paste(
+               "Pearson r =", round(correlation_coefficient, 3), "\n",
+               "Top", num_outliers, "deviating points labeled\n",
+               "Error bars show ±1 SD"
+             ),
+             hjust = 0, vjust = 1, size = 2.5
+    ) +
+    
+    labs(
+      title = plot_title,
+      x = x_label,
+      y = y_label,
+      caption = "Error bars represent standard deviation. 
 Points with large residuals that cannot be explained by measurement error are likely true biological outliers."
-  ) +
-  theme_minimal() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line = element_line(size = 1),
-    axis.ticks = element_line(size = 1),
-    axis.text = element_text(size = 8),
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),  
-    axis.title = element_text(size = 8),
-    plot.title = element_text(size = 8),
-    plot.caption = element_text(size = 8, color = "grey50", hjust = 0),
-    legend.text = element_text(size = 8),
-    legend.title = element_text(size = 8)
+    ) +
+    theme_minimal() +
+    theme(
+      panel.grid = element_blank(),
+      axis.line = element_line(size = 1),
+      axis.ticks = element_line(size = 1),
+      axis.text = element_text(size = 8),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),  
+      axis.title = element_text(size = 8),
+      plot.title = element_text(size = 8),
+      plot.caption = element_text(size = 8, color = "grey50", hjust = 0),
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8)
+    )
+  
+  # Display plot
+  print(p)
+  
+  # ===== Output detailed outlier information =====
+  outliers_info <- outliers_to_label %>%
+    mutate(
+      # Calculate error range
+      K13_error_range = 2 * `std_kcal/mol.x`,  # ±1 SD range
+      K19_error_range = 2 * `std_kcal/mol.y`,
+      # Determine if likely noise: if residual is within error range, likely noise
+      likely_noise = abs_residual < (K13_error_range + K19_error_range) / 2
+    ) %>%
+    select(mt, Pos_real, !!sym(assay1_name), `std_kcal/mol.x`, !!sym(assay2_name), `std_kcal/mol.y`, 
+           abs_residual, K13_error_range, K19_error_range, likely_noise) %>%
+    arrange(desc(abs_residual))
+  
+  if (print_summary) {
+    cat("=== Top", num_outliers, "Most Deviating Points with Error Information ===\n")
+    print(outliers_info)
+    
+    # Count outliers that might be due to noise
+    noise_count <- sum(outliers_info$likely_noise, na.rm = TRUE)
+    cat("\n=== Summary ===\n")
+    cat("Number of outliers that might be due to measurement noise:", noise_count, "/", num_outliers, "\n")
+    cat("Number of outliers likely representing true biological deviation:", num_outliers - noise_count, "/", num_outliers, "\n")
+  }
+  
+  # Save plot if output file specified
+  if (!is.null(output_file)) {
+    ggsave(filename = output_file,
+           plot = p,
+           device = cairo_pdf,
+           height = plot_height,
+           width = plot_width,
+           dpi = dpi)
+    cat(paste("Plot saved to:", output_file, "\n"))
+  }
+  
+  # Prepare summary statistics
+  summary_stats <- list(
+    total_points = nrow(ddG_dc),
+    outliers_count = num_outliers,
+    noise_outliers = sum(outliers_info$likely_noise, na.rm = TRUE),
+    biological_outliers = num_outliers - sum(outliers_info$likely_noise, na.rm = TRUE)
   )
+  
+  # Return results
+  return(list(
+    data = ddG_dc,
+    outliers = outliers_info,
+    correlation = correlation_coefficient,
+    fit = fit,
+    plot = p,
+    summary = summary_stats
+  ))
+}
 
-# ===== Output detailed outlier information (with error information) =====
-cat("=== Top", num_outliers, "Most Deviating Points with Error Information ===\n")
-outliers_info <- outliers_to_label %>%
-  mutate(
-    # Calculate error range
-    K13_error_range = 2 * `std_kcal/mol.x`,  # ±1 SD range
-    K19_error_range = 2 * `std_kcal/mol.y`,
-    # Determine if likely noise: if residual is within error range, likely noise
-    likely_noise = abs_residual < (K13_error_range + K19_error_range) / 2
-  ) %>%
-  select(mt, Pos_real, K13, `std_kcal/mol.x`, K19, `std_kcal/mol.y`, 
-         abs_residual, K13_error_range, K19_error_range, likely_noise) %>%
-  arrange(desc(abs_residual))
+# Execute function with original parameters
+result <- compare_interface_mutations_effects(
+  ddG_file1 = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K13.txt",
+  ddG_file2 = "C:/Users/36146/OneDrive - USTC/DryLab/MoCHI_8binders_l2_e6_RA_old_new_merge_at_mochi_20250901/task_901/weights/weights_Binding_K19.txt",
+  assay1_name = "K13",
+  assay2_name = "K19",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure2/20251022/scatter_plot_compare_K13_K19_binding_interface_label_outlier_per_mutations.pdf"
+)
 
-print(outliers_info)
-
-# Count outliers that might be due to noise
-noise_count <- sum(outliers_info$likely_noise, na.rm = TRUE)
-cat("\n=== Summary ===\n")
-cat("Number of outliers that might be due to measurement noise:", noise_count, "/", num_outliers, "\n")
-cat("Number of outliers likely representing true biological deviation:", num_outliers - noise_count, "/", num_outliers, "\n")
-
-# Save plot
-ggplot2::ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure2/20251011/scatter_plot_compare_K13_K19_binding_interface_label_outlier_per_mutations.pdf", 
-                device = cairo_pdf, height = 6, width = 6, dpi = 300)
