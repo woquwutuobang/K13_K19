@@ -7,6 +7,127 @@ library(ggplot2)
 library(dplyr)
 library(patchwork)
 
+#' Compare Fitness Data Between Two Libraries
+#'
+#' This function compares fitness data between two different libraries (e.g., synthetic vs nicking libraries)
+#' by processing normalized fitness data from multiple blocks and creating correlation plots.
+#' The function handles single mutation fitness data and generates comprehensive visualizations
+#' showing correlations between libraries both overall and by genomic regions/blocks.
+#'
+#' @param lib1_block1 character. Path to the RData file containing fitness data for library 1, block 1.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param lib1_block2 character. Path to the RData file containing fitness data for library 1, block 2.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param lib1_block3 character. Path to the RData file containing fitness data for library 1, block 3.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param lib2_block1 character. Path to the RData file containing fitness data for library 2, block 1.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param lib2_block2 character. Path to the RData file containing fitness data for library 2, block 2.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param lib2_block3 character. Path to the RData file containing fitness data for library 2, block 3.
+#'   Should contain fitness replicates data that can be processed by \code{nor_fitness()} function.
+#' @param wt_aa character. Wild-type amino acid sequence of the protein being analyzed.
+#'   Used for position identification and mutation mapping. Should be a single string containing
+#'   the complete amino acid sequence in single-letter code.
+#' @param output_file character, optional. Path where the output plot should be saved as PDF.
+#'   If NULL (default), the plot will only be displayed without saving. Should include
+#'   the full path and filename with .pdf extension.
+#' @param x_lab character. Label for the x-axis of the correlation plots. Default: "Library 1 fitness".
+#'   Should describe what library 1 represents (e.g., "Abundance nicking library fitness").
+#' @param y_lab character. Label for the y-axis of the correlation plots. Default: "Library 2 fitness".
+#'   Should describe what library 2 represents (e.g., "Abundance synthetic library fitness").
+#' @param main_title character. Main title for the combined plot. Default: "Comparison of fitness data between two libraries".
+#'   Should provide a clear description of what is being compared.
+#' @param point_alpha numeric. Transparency level for scatter plot points. Range: 0 (completely transparent) to 1 (completely opaque).
+#'   Default: 0.3. Lower values make overlapping points more visible in dense datasets.
+#' @param plot_width numeric. Width of the output plot in inches. Default: 16.
+#'   Used when saving the plot to file. Should be adjusted based on the number of subplots.
+#' @param plot_height numeric. Height of the output plot in inches. Default: 5.
+#'   Used when saving the plot to file. Should be adjusted based on the desired aspect ratio.
+#'
+#' @return A list containing:
+#'   \item{data}{data.table. Merged fitness data from both libraries containing columns:
+#'     \itemize{
+#'       \item block: Genomic region/block identifier
+#'       \item fitness1: Normalized fitness values from library 1
+#'       \item fitness_sigma1: Standard error of fitness values from library 1
+#'       \item fitness2: Normalized fitness values from library 2
+#'       \item fitness_sigma2: Standard error of fitness values from library 2
+#'       \item Pos: Amino acid position in the protein sequence
+#'       \item wtcodon: Wild-type codon at the position
+#'       \item codon: Mutant codon at the position
+#'       \item mt: Mutation type (e.g., "A12V")
+#'     }
+#'   }
+#'   \item{plot}{ggplot object. Combined correlation plot showing:
+#'     \itemize{
+#'       \item Overall correlation between libraries
+#'       \item Block-specific correlations (one subplot per genomic region)
+#'       \item Pearson correlation coefficients and p-values
+#'       \item Linear regression lines with confidence intervals
+#'     }
+#'   }
+#'
+#' @details The function performs the following steps:
+#' \enumerate{
+#'   \item Loads and processes fitness data from both libraries using \code{nor_fitness()} and \code{nor_fitness_single_mut()}
+#'   \item Merges data from both libraries based on position and mutation information
+#'   \item Creates correlation plots showing fitness relationships
+#'   \item Calculates Pearson correlation coefficients and statistical significance
+#'   \item Generates both overall and block-specific visualizations
+#'   \item Optionally saves the plot as a high-resolution PDF
+#' }
+#'
+#' The function requires the \code{wlab.block} package and expects RData files containing
+#' fitness replicate data that can be processed by the normalization functions.
+#'
+#' @examples
+#' # Basic usage comparing abundance libraries
+#' wt_sequence <- "TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
+#' 
+#' result <- compare_fitness_libraries_singlemut(
+#'   lib1_block1 = "path/to/nicking_block1.RData",
+#'   lib1_block2 = "path/to/nicking_block2.RData", 
+#'   lib1_block3 = "path/to/nicking_block3.RData",
+#'   lib2_block1 = "path/to/synthetic_block1.RData",
+#'   lib2_block2 = "path/to/synthetic_block2.RData",
+#'   lib2_block3 = "path/to/synthetic_block3.RData",
+#'   wt_aa = wt_sequence,
+#'   output_file = "library_comparison.pdf",
+#'   x_lab = "Nicking library fitness",
+#'   y_lab = "Synthetic library fitness",
+#'   main_title = "Fitness comparison: Nicking vs Synthetic libraries"
+#' )
+#' 
+#' # Access the merged data
+#' merged_data <- result$data
+#' print(paste("Total variants compared:", nrow(merged_data)))
+#' 
+#' # Access the plot
+#' comparison_plot <- result$plot
+#' print(comparison_plot)
+#' 
+#' # Example with custom plot parameters
+#' result_custom <- compare_fitness_libraries_singlemut(
+#'   lib1_block1 = "path/to/lib1_block1.RData",
+#'   lib1_block2 = "path/to/lib1_block2.RData",
+#'   lib1_block3 = "path/to/lib1_block3.RData",
+#'   lib2_block1 = "path/to/lib2_block1.RData",
+#'   lib2_block2 = "path/to/lib2_block2.RData",
+#'   lib2_block3 = "path/to/lib2_block3.RData",
+#'   wt_aa = wt_sequence,
+#'   point_alpha = 0.5,
+#'   plot_width = 14,
+#'   plot_height = 4,
+#'   x_lab = "RAF1 binding fitness (Library A)",
+#'   y_lab = "RAF1 binding fitness (Library B)",
+#'   main_title = "RAF1 binding fitness correlation analysis"
+#' )
+#'
+#' @seealso \code{\link{nor_fitness}}, \code{\link{nor_fitness_single_mut}}, \code{\link{pos_id}}
+#' @import wlab.block data.table ggplot2 dplyr patchwork
+#' @export
+
 compare_fitness_libraries_singlemut <- function(
     lib1_block1, lib1_block2, lib1_block3,
     lib2_block1, lib2_block2, lib2_block3,
@@ -83,12 +204,12 @@ compare_fitness_libraries_singlemut <- function(
                               ifelse(p_value < 0.0001, "< 0.0001", p_value)),
                hjust = 0, vjust = 1, size = 2.5,
                color = "black") +
-      theme_classic(base_size = 8) +  # 全局字体 8pt
+      theme_classic(base_size = 8) + 
       theme(
         panel.grid = element_blank(),
         plot.title = element_text(hjust = 0.5, size = 8),
         axis.text = element_text(size = 8, colour = "black"),
-        axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),  # X轴旋转90度
+        axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),  
         axis.title = element_text(size = 8),
         legend.position = "none",
         plot.margin = margin(3, 3, 3, 3),
@@ -199,4 +320,7 @@ result <- compare_fitness_libraries_singlemut(
   plot_width = 12,
   plot_height = 3
 )
+
+
+
 
