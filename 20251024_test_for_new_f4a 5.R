@@ -107,6 +107,8 @@ data_plot[, core_surface_type := fifelse(
 )]
 
 
+
+
 # ===== 1️⃣ 数据准备 =====
 # 提取 RAF1 与 K13 结合距离
 pos_mapping <- data_plot[Pos_real >= 2 & Pos_real <= 166,
@@ -118,20 +120,26 @@ pos_mapping[, rel_distance := ifelse(side == "RAF1",
                                      scHAmin_ligand_RAF1,
                                      scHAmin_ligand_K13)]
 # ===== 2️⃣ 生成排序顺序 =====
-# RAF1侧：按距离升序排列（最靠近RAF1的在最左）
-# K13侧：按距离升序排列（最靠近K13的在最右）
-pos_left  <- pos_mapping[side == "RAF1"][order(rel_distance)]
-pos_right <- pos_mapping[side == "K13"][order(rel_distance)]
+# 计算每个位置到 RAF1 和 K13 的距离，并取较小的距离
+pos_mapping[, min_distance := pmin(scHAmin_ligand_RAF1, scHAmin_ligand_K13)]
+
+# 按照每个位置的较小距离进行排序
+# 先按最小距离排序，确保RAF1和K13两侧的位置按距离升序排列
+pos_left  <- pos_mapping[side == "RAF1"][order(min_distance)]  # RAF1侧
+pos_right <- pos_mapping[side == "K13"][order(min_distance)]  # K13侧
+
 # 从左到右顺序：RAF1靠近 → RAF1远离 → K13远离 → K13靠近
 pos_order <- unique(c(pos_left$Pos_real, rev(pos_right$Pos_real)))
+
 # 应用排序顺序
 pos_mapping[, Pos_real_factor := factor(Pos_real, levels = pos_order)]
-# 定义颜色值：以远离界面为中心（白色），靠近界面为深色
-pos_mapping[, color_value := -abs(scHAmin_ligand_RAF1 - scHAmin_ligand_K13)]
 
-# 修正：先创建唯一的core/surface数据表
+# 基于较小的距离调整 color_value，使其反映更直观的距离变化
+pos_mapping[, color_value := pmin(scHAmin_ligand_RAF1, scHAmin_ligand_K13)]
+
+
+
 unique_core_surface <- unique(data_plot[, .(Pos_real, core_surface_type)])
-
 # 合并core/surface信息
 pos_mapping <- merge(pos_mapping, 
                      unique_core_surface, 
@@ -147,7 +155,7 @@ p_bottom <- ggplot(pos_mapping, aes(x = Pos_real_factor, y = 0)) +
              aes(x = Pos_real_factor, y = 0, color = core_surface_type),
              size = 2, shape = 16) +  # 菱形标记
   scale_fill_gradient2(
-    low = "black", mid = "white", high = "black",
+    low = "white", mid = "black", high = "white",
     midpoint = 0,
     name = "Proximity to Binding Sites"
   ) +
@@ -207,6 +215,6 @@ p_top <- ggplot(top_data, aes(x = Pos_real_factor, y = assay_name, fill = median
 # ===== 5️⃣ 上下图拼接 =====
 combined_plot <- p_top / p_bottom + plot_layout(heights = c(4, 1))
 combined_plot
-ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure4/20251024/f4a_min.pdf",
-       combined_plot, device = cairo_pdf, width = 45, height = 6)
 
+ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure4/20251024/f4a_min 2.pdf",
+       combined_plot, device = cairo_pdf, width = 45, height = 6)
