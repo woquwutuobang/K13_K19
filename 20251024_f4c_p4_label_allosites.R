@@ -176,6 +176,20 @@ is_raf1_allosteric <- all_positions %in% RAF1_allosteric_site
 contingency_table <- table(is_k13_allosteric, is_raf1_allosteric)
 fisher_test <- fisher.test(contingency_table)
 
+
+# 打印出 A, B, C, D 四种情况的值
+A <- contingency_table[1, 1]  # 既不是K13也不是RAF1变构位点的位置数
+B <- contingency_table[1, 2]  # 只是RAF1变构位点的位置数
+C <- contingency_table[2, 1]  # 只是K13变构位点的位置数
+D <- contingency_table[2, 2]  # 同时是K13和RAF1变构位点的位置数
+
+# 打印
+cat("A: 既不是K13也不是RAF1变构位点的位置数:", A, "\n")
+cat("B: 只是RAF1变构位点的位置数:", B, "\n")
+cat("C: 只是K13变构位点的位置数:", C, "\n")
+cat("D: 同时是K13和RAF1变构位点的位置数:", D, "\n")
+
+
 # 创建label_text
 or_value <- round(fisher_test$estimate, 2)
 if (fisher_test$p.value < 0.001) {
@@ -246,4 +260,4 @@ print(combined_plot_label)
 
 # 保存组合图
 ggsave("C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure4/20251024/combined_scatter_plots_label_allosites.pdf", 
-       combined_plot_label, device = cairo_pdf, width = 16, height = 4.5)
+       combined_plot_label, device = cairo_pdf, width = 17, height = 5)
