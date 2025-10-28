@@ -181,8 +181,8 @@ compare_interface_mutations_effects <- function(
   ddG2 <- krasddpcams__read_ddG(ddG = ddG_file2, assay_sele = assay2_name)
   
   # Filter to binding interface sites
-  ddG1_filtered <- ddG1[Pos %in% binding_interface_sites1, c(1:3, 23:27)]
-  ddG2_filtered <- ddG2[Pos %in% binding_interface_sites2, c(1:3, 23:27)]
+  ddG1_filtered <- ddG1[Pos_real %in% binding_interface_sites1, c(1:3, 23:27)]
+  ddG2_filtered <- ddG2[Pos_real %in% binding_interface_sites2, c(1:3, 23:27)]
   
   # Spread data for merging
   ddG1_dc <- ddG1_filtered %>%
