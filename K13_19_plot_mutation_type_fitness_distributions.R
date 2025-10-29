@@ -1,138 +1,170 @@
-# ================================
-# Fitness Distribution Analysis by Mutation Type
-# ================================
-
-library(dplyr)
 library(ggplot2)
+library(dplyr)
 library(patchwork)
+library(wlab.block)
 
-#' Plot fitness density distributions by mutation type
-#'
-#' @param fit_data Fitness data for all variants
-#' @param wt_data Wild-type fitness data
-#' @param syn_data Synonymous mutation fitness data
-#' @param assay_name Assay name (for title annotation)
-#' @param block_name Block name (for subtitle annotation)
-#' @return ggplot object showing density distributions
-plot_fitness_density <- function(fit_data, wt_data, syn_data, assay_name, block_name) {
+# ============================================================
+# Function: plot_assay_fitness_density
+# Description:
+#   Generate density plots of normalized fitness distributions for 
+#   synonymous, missense, and stop mutations across experimental blocks
+#   for any given assay type (abundance, binding, etc.).
+#   The top panel shows the global distribution across all blocks,
+#   while the bottom panel shows block-specific distributions.
+# 
+# Parameters:
+#   assay_type: Name of the assay (e.g., "abundance", "RAF1", "SOS1", etc.)
+#   block1: Path to block1 fitness data file
+#   block2: Path to block2 fitness data file  
+#   block3: Path to block3 fitness data file
+#   output_file: Optional path to save the plot (if NULL, only displays plot)
+#
+# Returns:
+#   Combined ggplot object with two panels
+# ============================================================
+
+plot_fitness_density <- function(assay_type, block1, block2, block3, output_file = NULL) {
   
-  # WT
-  df_wt <- wt_data %>% mutate(mut_type = "WT")
+  # Load normalized fitness data from three experimental blocks
+  nor_fit <- nor_fitness(block1 = block1, block2 = block2, block3 = block3)
   
-  # Synonymous
-  df_syn <- syn_data %>% mutate(mut_type = "Synonymous")
+  # Classify mutation types based on sequence changes
+  nor_fit_classified <- nor_fit %>%
+    mutate(
+      mut_type = case_when(
+        # Synonymous: amino acid unchanged but nucleotide changed
+        Nham_aa == 0 & Nham_nt > 0 ~ "Synonymous",
+        # Stop: introduces stop codon
+        STOP == TRUE | STOP_readthrough == TRUE ~ "Stop",
+        # Missense: amino acid changed, not indel, not stop
+        Nham_aa > 0 & indel == FALSE & STOP == FALSE & STOP_readthrough == FALSE ~ "Missense"
+      )
+    ) %>%
+    filter(!is.na(mut_type))  # Remove unclassified mutations
   
-  # Stop
-  df_stop <- fit_data %>%
-    filter(STOP == TRUE | STOP_readthrough == TRUE) %>%
-    mutate(mut_type = "Stop")
+  # Display mutation type distribution
+  cat("Mutation type distribution for", assay_type, ":\n")
+  print(table(nor_fit_classified$mut_type))
   
-  # Missense
-  df_mis <- fit_data %>%
-    filter(Nham_aa > 0 & indel == FALSE & STOP == FALSE) %>%
-    mutate(mut_type = "Missense")
+  # Prepare data for plotting
+  nor_fit_plot <- nor_fit_classified %>%
+    mutate(mut_type = factor(mut_type, levels = c("Synonymous", "Missense", "Stop")))
   
-  # Combine all data
-  df_plot <- bind_rows(df_wt, df_syn, df_stop, df_mis) %>%
-    select(mut_type, fitness)
+  # Display distribution for plotting data
+  cat("Mutation types for plotting", assay_type, ":\n")
+  print(table(nor_fit_plot$mut_type))
   
-  # 绘图
-  p <- ggplot(df_plot, aes(x = fitness, fill = mut_type, color = mut_type)) +
-    geom_density(alpha = 0.4) +
-    scale_fill_manual(values = c(
-      "WT" = "black",
-      "Synonymous" = "#1B38A6",
-      "Missense" = "#F1DD10",
-      "Stop" = "#F4270C"
-    )) +
-    scale_color_manual(values = c(
-      "WT" = "black",
-      "Synonymous" = "#1B38A6",
-      "Missense" = "#F1DD10",
-      "Stop" = "#F4270C"
-    )) +
-    labs(
-      x = "Fitness",
-      y = "Density",
-      title = assay_name,
-      subtitle = block_name
+  # Create global density plot (all blocks combined)
+  p_overall <- ggplot(nor_fit_plot, aes(x = nor_fitness, fill = mut_type)) +
+    geom_density(alpha = 0.7, color = NA) +
+    scale_fill_manual(
+      values = c(
+        "Synonymous" = "#09B636", 
+        "Missense" = "#F4AD0C",
+        "Stop" = "#FF6A56"
+      ),
+      name = "Mutation Type"
     ) +
-    theme_classic(base_size = 8) +
+    labs(
+      title = paste(toupper(assay_type), "- Fitness Distribution by Mutation Type"),
+      x = "Normalized Fitness",
+      y = "Density"
+    ) +
+    # Set x-axis limits
+    xlim(-1.8, 0.5) +
+    theme_classic() +
     theme(
-      legend.title = element_blank(),
-      legend.position = "top",
-      axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust = 1),
-      axis.text.y = element_text(size = 8),
-      axis.title = element_text(size = 8),
-      legend.text = element_text(size = 8),
-      plot.title = element_text(size = 8, hjust = 0.5),
-      plot.subtitle = element_text(size = 8, hjust = 0.5)
+      legend.position = "bottom",
+      plot.title = element_text(hjust = 0.5, size = 8),
+      text = element_text(size = 8),
+      axis.text = element_text(size = 8)
     )
   
-  return(p)
-}
-
-# =====================
-# Helper function: combine three blocks for one assay
-# =====================
-combine_assay_blocks <- function(assay_name, block_paths, output_file) {
-  
-  plots <- list()
-  
-  for (i in seq_along(block_paths)) {
-    load(block_paths[[i]])  # loads all_variants, wildtype, synonymous
-    block_name <- paste0("Block ", i)
-    
-    plots[[i]] <- plot_fitness_density(
-      fit_data = all_variants %>% filter(sigma < 0.5),
-      wt_data = wildtype %>% filter(sigma < 0.5),
-      syn_data = synonymous %>% filter(sigma < 0.5),
-      assay_name = assay_name,
-      block_name = block_name
+  # Create block-specific density plots
+  p_by_block <- ggplot(nor_fit_plot, aes(x = nor_fitness, fill = mut_type)) +
+    geom_density(alpha = 0.6, color = NA) +
+    facet_wrap(~ block, ncol = 4) +
+    scale_fill_manual(
+      values = c(
+        "Synonymous" = "#09B636",
+        "Missense" = "#F4AD0C", 
+        "Stop" = "#FF6A56"
+      )
+    ) +
+    labs(
+      title = paste(toupper(assay_type), "- Fitness Distribution by Block"),
+      x = "Normalized Fitness", 
+      y = "Density"
+    ) +
+    # Set x-axis limits
+    xlim(-1.8, 0.5) +
+    theme_classic() +
+    theme(
+      legend.position = "none",  # Remove legend from this panel
+      plot.title = element_text(hjust = 0.5, size = 8),
+      text = element_text(size = 8),
+      axis.text = element_text(size = 8),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      strip.text = element_text(size = 8)
     )
+  
+  # Combine plots with shared legend
+  combined_plot <- p_overall / p_by_block + 
+    plot_layout(heights = c(1, 2), guides = "collect") &
+    theme(legend.position = "bottom")
+  
+  # Save plot if output file specified
+  if (!is.null(output_file)) {
+    ggsave(output_file, combined_plot, width = 6, height = 5, units = "in")
+    cat("Plot saved to:", output_file, "\n")
   }
   
-  combined_plot <- wrap_plots(plots, ncol = 3) +
-    plot_annotation(
-      title = paste0("Fitness Density Distribution - ", assay_name),
-      theme = theme(plot.title = element_text(hjust = 0.5, size = 8))
-    )
-  
-  ggsave(output_file, combined_plot, width = 12, height = 5, dpi = 300)
-  cat(paste("Saved combined figure for", assay_name, "→", output_file, "\n"))
-  
+  # Return the combined plot object
   return(combined_plot)
 }
 
-# =====================
-# Example usage
-# =====================
-wt_aa<-"TEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNTKSFEDIHHYREQIKRVKDSEDVPMVLVGNKCDLPSRTVDTKQAQDLARSYGIPFIETSAKTRQGVDDAFYTLVREIRKHKEKMSKDGKKKKKKSKTKCVIM"
 
-# Define paths (replace with actual file paths)
-k13_paths <- c(
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/K13_block1_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/K13_block2_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/K13_block3_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData"
-)
-k19_paths <- c(
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/K19_block1_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/K19_block2_Q20_rbg_filter3_20250830_fitness_replicates.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/K19_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData"
-)
-raf1_paths <- c(
-  "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/RAF_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_RData_report_20250829/RAF_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData"
-)
-abundance_paths <- c(
-  "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_1_fitness_replicates_fullseq.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/Abundance_block2_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData",
-  "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/rbg_filter2_Q20_cleaned_RData_20250829_2/Abundance_block3_Q20_rbg_filter2_20250829_fitness_replicates_cleaned.RData"
+
+### Abundance
+
+plot_fitness_density(
+  block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_abundance_1_fitness_replicates_fullseq.RData",
+  block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  assay_type = "Abundance",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/Abundance_normalized_density.pdf"
 )
 
-# Generate combined figures
-combine_assay_blocks("K13", k13_paths, "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251009/K13_combined_density.pdf")
-combine_assay_blocks("K19", k19_paths, "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251009/K19_combined_density.pdf")
-combine_assay_blocks("RAF1", raf1_paths, "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251009/RAF1_combined_density.pdf")
-combine_assay_blocks("Abundance", abundance_paths, "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251009/Abundance_combined_density.pdf")
+
+
+### RAF1
+
+plot_fitness_density(
+  block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
+  block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  assay_type = "RAF1",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/RAF1_normalized_density.pdf"
+)
+
+
+
+### K13
+plot_fitness_density(
+  block1 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block1_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  assay_type = "K13",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/K13_normalized_density.pdf"
+)
+
+
+
+### K19
+plot_fitness_density(
+  block1 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block1_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block2_Q20_rbg_filter3_20250830_fitness_replicates.RData",
+  block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
+  assay_type = "K19",
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/K19_normalized_density.pdf"
+)
