@@ -55,9 +55,9 @@ plot_fitness_density <- function(assay_type, block1, block2, block3, output_file
   print(table(nor_fit_plot$mut_type))
   
   # Create global density plot (all blocks combined)
-  p_overall <- ggplot(nor_fit_plot, aes(x = nor_fitness, fill = mut_type)) +
-    geom_density(alpha = 0.7, color = NA) +
-    scale_fill_manual(
+  p_overall <- ggplot(nor_fit_plot, aes(x = nor_fitness, color = mut_type)) +
+    geom_density(size = 1) +  # Line plot instead of fill
+    scale_color_manual(
       values = c(
         "Synonymous" = "#09B636", 
         "Missense" = "#F4AD0C",
@@ -71,7 +71,7 @@ plot_fitness_density <- function(assay_type, block1, block2, block3, output_file
       y = "Density"
     ) +
     # Set x-axis limits
-    xlim(-1.8, 0.5) +
+    xlim(-1.5, 0.5) +
     theme_classic() +
     theme(
       legend.position = "bottom",
@@ -81,10 +81,10 @@ plot_fitness_density <- function(assay_type, block1, block2, block3, output_file
     )
   
   # Create block-specific density plots
-  p_by_block <- ggplot(nor_fit_plot, aes(x = nor_fitness, fill = mut_type)) +
-    geom_density(alpha = 0.6, color = NA) +
+  p_by_block <- ggplot(nor_fit_plot, aes(x = nor_fitness, color = mut_type)) +
+    geom_density(size = 1) +  # Line plot instead of fill
     facet_wrap(~ block, ncol = 4) +
-    scale_fill_manual(
+    scale_color_manual(
       values = c(
         "Synonymous" = "#09B636",
         "Missense" = "#F4AD0C", 
@@ -97,7 +97,7 @@ plot_fitness_density <- function(assay_type, block1, block2, block3, output_file
       y = "Density"
     ) +
     # Set x-axis limits
-    xlim(-1.8, 0.5) +
+    xlim(-1.5, 0.5) +
     theme_classic() +
     theme(
       legend.position = "none",  # Remove legend from this panel
@@ -115,7 +115,7 @@ plot_fitness_density <- function(assay_type, block1, block2, block3, output_file
   
   # Save plot if output file specified
   if (!is.null(output_file)) {
-    ggsave(output_file, combined_plot, width = 6, height = 5, units = "in")
+    ggsave(output_file, combined_plot, width = 4, height = 6, units = "in")
     cat("Plot saved to:", output_file, "\n")
   }
   
@@ -132,19 +132,7 @@ plot_fitness_density(
   block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/Abundance_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   assay_type = "Abundance",
-  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/Abundance_normalized_density.pdf"
-)
-
-
-
-### RAF1
-
-plot_fitness_density(
-  block1 = "C:/Users/36146/OneDrive - USTC/DryLab/final_fitness_for_plot/20250525_RDatas/CW_RAS_binding_RAF_1_fitness_replicates_fullseq.RData",
-  block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
-  block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/RAF_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
-  assay_type = "RAF1",
-  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/RAF1_normalized_density.pdf"
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure1/20251029/Abundance_normalized_density.pdf"
 )
 
 
@@ -155,7 +143,7 @@ plot_fitness_density(
   block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block2_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K13_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   assay_type = "K13",
-  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/K13_normalized_density.pdf"
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure1/20251029/K13_normalized_density.pdf"
 )
 
 
@@ -166,5 +154,5 @@ plot_fitness_density(
   block2 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block2_Q20_rbg_filter3_20250830_fitness_replicates.RData",
   block3 = "C:/Users/36146/OneDrive - USTC/DryLab/DiMSum/DiMSum_rerun_20250821/20251010_合并同义突变数据_sigma数据清洁/K19_block3_Q20_rbg_filter2_20250829_fitness_replicates.RData",
   assay_type = "K19",
-  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure_s1/20251015/K19_normalized_density.pdf"
+  output_file = "C:/Users/36146/OneDrive - USTC/Manuscripts/K13_K19/figures/figure1/20251029/K19_normalized_density.pdf"
 )
